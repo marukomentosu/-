@@ -3,77 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Real Tactile</title>
+    <title>Track Timer Pro - LINE Optimized</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #007AFF; --success: #4cd964; --danger: #ff3b30;
             --warning: #ff9500; --purple: #af52de; --bg: #000;
         }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; touch-action: manipulation; }
+        /* iPhoneの長押しメニューや選択を無効化 */
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            -webkit-touch-callout: none; 
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         header { background: #1c1c1e; padding: 10px; z-index: 10; border-bottom: 1px solid #333; }
-        #main-clock { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; text-align: center; color: #fff; text-shadow: 0 0 10px var(--primary); }
+        #main-clock { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; text-align: center; color: #fff; }
         .controls { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
         
-        button { 
-            border: none; border-radius: 12px; font-weight: bold; cursor: pointer; 
-            position: relative; top: 0; box-shadow: 0 4px 0 #000;
-        }
-        button:active { top: 2px; box-shadow: 0 1px 0 #000; filter: brightness(1.2); }
-        
-        .btn-start { background: var(--success); color: white; flex: 2; padding: 12px; }
-        .btn-stop { background: var(--warning); color: white; flex: 2; padding: 12px; }
-        .btn-reset { background: var(--danger); color: white; flex: 1; padding: 12px; }
+        /* 上部操作ボタン */
+        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-start { background: var(--success); flex: 2; padding: 12px; }
+        .btn-stop { background: var(--warning); flex: 2; padding: 12px; }
+        .btn-reset { background: var(--danger); flex: 1; padding: 12px; }
         .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); flex: 1.2; padding: 12px; }
 
-        /* 選手タイル：スマホ用物理シミュレーション */
+        /* 選手パネル */
         #grid-container { flex: 1; padding: 10px; display: grid; gap: 12px; align-content: stretch; }
         
         .student-cell { 
-            background: #111; /* 底面の色 */
-            border-radius: 18px; position: relative; overflow: visible;
-        }
-
-        /* 実際に動く前面部分 */
-        .cell-content {
-            position: absolute; inset: 0;
             background: #2c2c2e; border-radius: 18px; display: flex; 
-            border: 1px solid #444; top: -6px; /* 最初は浮いている */
-            transition: all 0.05s cubic-bezier(0.2, 0, 0, 1);
-            box-shadow: 0 6px 0 #000;
-            pointer-events: none; /* 下の要素のクリックを邪魔しない */
+            overflow: hidden; border: 1px solid #444; 
+            transition: filter 0.1s ease, transform 0.05s ease;
+            touch-action: none; /* iPhoneでのスクロール誤動作防止 */
         }
 
-        /* JavaScriptで付与する「押し込み」状態 */
-        .student-cell.is-pressed .cell-content {
-            top: 0;
-            box-shadow: 0 0 0 #000;
-            background: #3a3a3c;
+        /* 触れた瞬間の「暗くなる」設定 */
+        .student-cell.is-pressed {
+            filter: brightness(0.4) !important; /* 強制的に暗くする */
+            transform: scale(0.96); /* わずかに小さくして「押した感」を出す */
         }
 
-        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444; }
-        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; border-radius: 0 18px 18px 0; }
+        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444; pointer-events: none; }
+        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; pointer-events: none; }
 
-        .student-cell.is-pressed .goal-trigger { background: var(--danger); color: white; }
-
-        #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
-        .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
-
+        /* 解析モーダル */
         #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 20px; border: 1px solid #333; }
         .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
-        .nav-btn { background: #333; color: var(--primary); padding: 8px 15px; border-radius: 8px; font-size: 1.2rem; }
+        .nav-btn { background: #333; color: var(--primary); padding: 8px 20px; border-radius: 10px; font-size: 1.2rem; }
+        .nav-btn:active { filter: brightness(0.5); }
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
-        .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; border-bottom: 4px solid #111; }
-        .selector-btn.active { border-color: var(--primary); color: var(--primary); background: #1a2530; }
+        .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; }
+        .selector-btn.active { color: var(--primary); background: #1a2530; border: 1px solid var(--primary); }
         .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
 
-        .config-bar { display: flex; align-items: center; justify-content: center; gap: 10px; color: #aaa; font-size: 14px; }
-        .unit-input { width: 70px; background: #333; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 5px; text-align: center; }
-        .active-running .cell-content { border-color: var(--success) !important; }
-        .finished { opacity: 0.15; filter: grayscale(1); pointer-events: none; }
+        #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
+        
+        .config-bar { display: flex; align-items: center; justify-content: center; gap: 8px; color: #aaa; font-size: 13px; padding-bottom: 5px; }
+        .active-running { border-color: var(--success) !important; }
+        .finished { opacity: 0.2; filter: grayscale(1); pointer-events: none; }
     </style>
 </head>
 <body>
@@ -86,12 +79,11 @@
         <button class="btn-graph" onclick="showGlobalGraph()">ALL分析</button>
     </div>
     <div class="config-bar">
-        <button onclick="changeStudentCount(-1)">➖</button>
-        <span id="student-count-lbl" style="color:#fff; font-weight:bold; width: 40px; text-align: center;">1 人</span>
-        <button onclick="changeStudentCount(1)">➕</button>
-        <span style="margin-left:10px;">単位:</span>
-        <input type="text" id="unit-label" class="unit-input" value="Lap">
-        <button style="background:#333; color:#fff;" onclick="copyData()">コピー</button>
+        <button onclick="changeStudentCount(-1)" style="padding:5px 15px; background:#333;">➖</button>
+        <span id="student-count-lbl" style="color:#fff; font-weight:bold; min-width:35px; text-align:center;">1 人</span>
+        <button onclick="changeStudentCount(1)" style="padding:5px 15px; background:#333;">➕</button>
+        <input type="text" id="unit-label" style="width:50px; background:#333; color:#fff; border:none; border-radius:4px; text-align:center;" value="Lap">
+        <button onclick="copyData()" style="padding:5px 10px; background:#333;">コピー</button>
     </div>
 </header>
 
@@ -102,18 +94,18 @@
     <div class="modal-body" onclick="event.stopPropagation()">
         <div class="graph-header" id="nav-header">
             <button class="nav-btn" onclick="navigatePlayer(-1)">◀</button>
-            <h3 id="graph-title">解析</h3>
+            <h3 id="graph-title" style="color:#fff; margin:0;">解析</h3>
             <button class="nav-btn" onclick="navigatePlayer(1)">▶</button>
         </div>
         <div class="mode-selector">
             <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計</button>
             <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間</button>
         </div>
-        <div style="height: 300px;"><canvas id="chartCanvas"></canvas></div>
+        <div style="height: 280px;"><canvas id="chartCanvas"></canvas></div>
         <div class="action-bar">
-            <button style="background:#444; color:#fff;" onclick="closeModal()">閉じる</button>
-            <button style="background:var(--primary); color:#fff;" onclick="downloadGraph()">画像保存</button>
-            <button style="background:var(--success); color:#fff;" onclick="shareGraph()">共有</button>
+            <button style="background:#444;" onclick="closeModal()">閉じる</button>
+            <button style="background:var(--primary);" onclick="downloadGraph()">画像保存</button>
+            <button style="background:var(--success);" onclick="shareGraph()">共有</button>
         </div>
     </div>
 </div>
@@ -134,10 +126,8 @@
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
         studentData = {}; 
-        let cols = studentCount <= 1 ? 1 : studentCount <= 4 ? 2 : studentCount <= 9 ? 3 : 4;
-        let rows = Math.ceil(studentCount / cols);
+        let cols = studentCount <= 1 ? 1 : (studentCount <= 4 ? 2 : 3);
         container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-        container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
 
         for (let i = 1; i <= studentCount; i++) {
             studentData[i] = { laps: [], lastTime: 0, finished: false };
@@ -145,28 +135,32 @@
             cell.className = 'student-cell';
             cell.id = `cell-${i}`;
             cell.innerHTML = `
-                <div class="cell-content">
-                    <div class="lap-trigger" id="lap-${i}"><span>No.</span>${i}</div>
-                    <div class="goal-trigger" id="goal-${i}">GOAL</div>
-                </div>`;
+                <div class="lap-trigger"><span>#${i}</span></div>
+                <div class="goal-trigger" id="goal-target-${i}">GOAL</div>
+            `;
             
-            // タッチイベントの制御（これが押し心地の肝）
-            const handleTouch = (e, type, id) => {
-                if (type === 'start') {
-                    cell.classList.add('is-pressed');
-                    if (navigator.vibrate) navigator.vibrate(20);
-                } else {
-                    cell.classList.remove('is-pressed');
-                    if (e.target.id.includes('goal')) recordGoal(id);
-                    else recordLap(id);
-                }
+            // iPhone/LINEで確実に反応するイベントリスナー
+            const onStart = (e) => {
+                if (!isRunning || studentData[i].finished) return;
+                cell.classList.add('is-pressed');
+                if (navigator.vibrate) navigator.vibrate(15);
             };
 
-            cell.addEventListener('touchstart', (e) => handleTouch(e, 'start', i), {passive: true});
-            cell.addEventListener('touchend', (e) => handleTouch(e, 'end', i), {passive: true});
-            // PCブラウザ用
-            cell.addEventListener('mousedown', (e) => handleTouch(e, 'start', i));
-            cell.addEventListener('mouseup', (e) => handleTouch(e, 'end', i));
+            const onEnd = (e) => {
+                if (!cell.classList.contains('is-pressed')) return;
+                cell.classList.remove('is-pressed');
+                
+                // タップ位置でLAPかGOALか判定
+                const rect = cell.getBoundingClientRect();
+                const touchX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - rect.left;
+                if (touchX > rect.width * 0.6) recordGoal(i);
+                else recordLap(i);
+            };
+
+            cell.addEventListener('touchstart', onStart, {passive: true});
+            cell.addEventListener('touchend', onEnd, {passive: true});
+            cell.addEventListener('mousedown', onStart);
+            cell.addEventListener('mouseup', onEnd);
 
             container.appendChild(cell);
             logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
@@ -186,11 +180,11 @@
                 document.getElementById('main-clock').innerText = formatTime(elapsedTime);
             }, 50);
             isRunning = true;
-            btn.innerText = 'STOP'; btn.className = 'btn-stop';
+            btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
         } else {
             clearInterval(timerInterval);
             isRunning = false;
-            btn.innerText = 'START'; btn.className = 'btn-start';
+            btn.innerText = 'START'; btn.style.background = 'var(--success)';
         }
     }
 
@@ -212,7 +206,6 @@
         if (Object.values(studentData).every(d => d.finished)) toggleTimer();
     }
 
-    /* 以下、グラフ・ユーティリティ等は前回のロジックを継承 */
     function changeStudentCount(v) {
         if(elapsedTime > 0) return alert("RESETしてください");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
@@ -220,11 +213,11 @@
         initStudents();
     }
     function resetTimer() {
-        if(elapsedTime > 0 && !confirm("データを消去しますか？")) return;
+        if(elapsedTime > 0 && !confirm("消去しますか？")) return;
         clearInterval(timerInterval); isRunning = false; elapsedTime = 0;
         document.getElementById('main-clock').innerText = '00:00.00';
         document.getElementById('start-btn').innerText = 'START';
-        document.getElementById('start-btn').className = 'btn-start';
+        document.getElementById('start-btn').style.background = 'var(--success)';
         initStudents();
     }
     function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
@@ -272,7 +265,7 @@
                         label: `No.${i}`,
                         data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap),
                         borderColor: `hsl(${i * 137}, 70%, 50%)`,
-                        borderWidth: 3, tension: 0.1, pointRadius: 4, fill: false
+                        borderWidth: 2.5, tension: 0.1, fill: false
                     });
                     maxL = Math.max(maxL, studentData[i].laps.length);
                 }
@@ -284,7 +277,7 @@
             datasets.push({
                 label: currentMode==='split'?'累計':'区間',
                 data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap),
-                borderColor: '#007AFF', borderWidth: 4, tension: 0.1, pointRadius: 7, fill: false
+                borderColor: '#007AFF', borderWidth: 4, tension: 0.1, pointRadius: 6, fill: false
             });
         }
         chartInstance = new Chart(ctx, {
@@ -292,9 +285,10 @@
             data: { labels, datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: currentTarget === 'all', labels: { color: '#aaa' } } },
                 scales: { 
-                    y: { reverse: (currentMode==='lap'), grid: { color: '#222' }, ticks: { color: '#aaa' } },
-                    x: { grid: { color: '#222' }, ticks: { color: '#aaa' } }
+                    y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } },
+                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } }
                 }
             }
         });
@@ -307,7 +301,7 @@
     }
     function downloadGraph() {
         const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL();
-        a.download = `result_${currentTarget}.png`; a.click();
+        a.download = `result.png`; a.click();
     }
     function copyData() {
         let txt = "【計測】\n";
