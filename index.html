@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer - Full Features</title>
+    <title>Track Timer - Perfect Undo</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -23,11 +23,10 @@
         #main-clock { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; text-align: center; color: #fff; }
         .controls { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
         
-        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: white; transition: transform 0.05s; }
+        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: white; }
         .btn-start { background: var(--success); flex: 2; padding: 12px; }
         .btn-stop { background: var(--warning); flex: 2; padding: 12px; }
         .btn-reset { background: var(--danger); flex: 1; padding: 12px; }
-        .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); flex: 1.2; padding: 12px; }
 
         #grid-container { flex: 1; padding: 10px; display: grid; gap: 12px; align-content: stretch; }
         .student-cell { 
@@ -41,24 +40,16 @@
         .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 2px solid #444; pointer-events: none; }
         .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; pointer-events: none; }
 
-        #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
-        .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 15px; border: 1px solid #333; }
-        .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-        .nav-btn { background: #333; color: var(--primary); padding: 8px 20px; border-radius: 10px; font-size: 1.2rem; }
-        
-        .mode-selector { display: flex; gap: 10px; margin-bottom: 10px; }
-        .selector-btn { flex: 1; padding: 10px; border-radius: 10px; background: #2c2c2e; color: #888; font-size: 14px; }
-        .selector-btn.active { color: var(--primary); background: #1a2530; border: 1px solid var(--primary); }
-
         .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 15px; }
-        .action-bar button { padding: 12px 5px; font-size: 13px; border-radius: 10px; }
-
         #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
         .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
         .config-bar { display: flex; align-items: center; justify-content: center; gap: 6px; color: #aaa; font-size: 12px; padding: 5px; }
+        
         .active-running { border-color: var(--primary) !important; }
         .finished { opacity: 0.1; filter: grayscale(1); pointer-events: none; }
-        .btn-undo { background: #444; color: #eee; padding: 5px 10px; border-radius: 6px; }
+        
+        #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
+        .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 15px; }
     </style>
 </head>
 <body>
@@ -68,14 +59,14 @@
     <div class="controls">
         <button id="start-btn" class="btn-start" onclick="toggleTimer()">START</button>
         <button class="btn-reset" onclick="resetTimer()">RESET</button>
-        <button class="btn-graph" onclick="showGlobalGraph()">ALL分析</button>
+        <button style="background:#2c2c2e; border:1px solid var(--purple); color:var(--purple); flex:1.2;" onclick="showGlobalGraph()">ALL分析</button>
     </div>
     <div class="config-bar">
         <button onclick="changeStudentCount(-1)" style="padding:5px 12px; background:#333;">➖</button>
         <span id="student-count-lbl" style="color:#fff; min-width:30px; text-align:center;">1 人</span>
         <button onclick="changeStudentCount(1)" style="padding:5px 12px; background:#333;">➕</button>
         <input type="text" id="unit-label" style="width:40px; background:#333; color:#fff; border:none; text-align:center;" value="Lap">
-        <button class="btn-undo" onclick="undoLastAction()">↩ 戻す</button>
+        <button style="background:#444; color:#eee; padding:5px 10px; border-radius:6px;" onclick="undoLastAction()">↩ 戻す</button>
         <button onclick="copyData()" style="padding:5px 8px; background:#333;">コピー</button>
     </div>
 </header>
@@ -85,18 +76,16 @@
 
 <div id="modal-overlay" onclick="closeModal()">
     <div class="modal-body" onclick="event.stopPropagation()">
-        <div class="graph-header" id="nav-header">
-            <button class="nav-btn" onclick="navigatePlayer(-1)">◀</button>
-            <h3 id="graph-title" style="color:#fff; margin:0; font-size:1.1rem;">解析</h3>
-            <button class="nav-btn" onclick="navigatePlayer(1)">▶</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <button class="nav-btn" style="background:#333; color:var(--primary); padding:8px 20px; border-radius:10px;" onclick="navigatePlayer(-1)">◀</button>
+            <h3 id="graph-title" style="color:#fff; margin:0;">解析</h3>
+            <button class="nav-btn" style="background:#333; color:var(--primary); padding:8px 20px; border-radius:10px;" onclick="navigatePlayer(1)">▶</button>
         </div>
-        <div class="mode-selector">
-            <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計タイム</button>
-            <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間タイム</button>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button id="mode-split" style="flex:1; padding:10px; border-radius:10px; background:#2c2c2e; color:#888;" onclick="switchMode('split')">累計</button>
+            <button id="mode-lap" style="flex:1; padding:10px; border-radius:10px; background:#2c2c2e; color:#888;" onclick="switchMode('lap')">区間</button>
         </div>
-        <div style="height: 250px; background: #000; border-radius: 12px; padding: 5px;">
-            <canvas id="chartCanvas"></canvas>
-        </div>
+        <div style="height: 250px;"><canvas id="chartCanvas"></canvas></div>
         <div class="action-bar">
             <button style="background:#444;" onclick="closeModal()">閉じる</button>
             <button style="background:var(--primary);" onclick="downloadGraph()">画像保存</button>
@@ -108,16 +97,16 @@
 <script>
     let startTime = 0, elapsedTime = 0, timerInterval = null, isRunning = false;
     let studentCount = 1, studentData = {}, chartInstance = null;
-    let currentTarget = 'all', currentMode = 'lap', lastAction = null;
+    let currentTarget = 'all', currentMode = 'lap';
+    let history = []; // 動作履歴を保存（複数回のUNDOを可能に）
 
     function initStudents() {
         const container = document.getElementById('grid-container');
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
-        studentData = {}; 
+        studentData = {}; history = [];
         let cols = studentCount <= 1 ? 1 : (studentCount <= 4 ? 2 : 3);
         container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-
         for (let i = 1; i <= studentCount; i++) {
             studentData[i] = { laps: [], lastTime: 0, finished: false };
             const cell = document.createElement('div');
@@ -142,7 +131,7 @@
             cell.addEventListener('mousedown', onStart);
             cell.addEventListener('mouseup', onEnd);
             container.appendChild(cell);
-            logArea.innerHTML += `<div class="log-row" id="log-row-${i}" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
+            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
         }
     }
 
@@ -177,8 +166,8 @@
         const split = (now - startTime) / 1000;
         studentData[id].laps.push({ split, lap, type });
         studentData[id].lastTime = now;
-        lastAction = { id, type };
-        updateLogText(id);
+        history.push(id); // 誰が最後に記録したかを履歴に追加
+        updateDisplay(id);
     }
 
     function recordGoal(id) {
@@ -189,41 +178,54 @@
     }
 
     function undoLastAction() {
-        if (!lastAction) return;
-        const { id } = lastAction;
-        const student = studentData[id];
+        if (history.length === 0) return;
+        const lastId = history.pop();
+        const student = studentData[lastId];
+        
         if (student.laps.length > 0) {
-            student.laps.pop();
+            student.laps.pop(); // 最後のデータを消去
             student.finished = false;
-            student.lastTime = student.laps.length > 0 ? startTime + (student.laps[student.laps.length-1].split * 1000) : startTime;
-            document.getElementById(`cell-${id}`).classList.remove('finished');
-            updateLogText(id);
+            
+            // 基準時間を一つ前に戻す
+            student.lastTime = student.laps.length > 0 
+                ? startTime + (student.laps[student.laps.length-1].split * 1000) 
+                : startTime;
+            
+            // 表示を元に戻す
+            document.getElementById(`cell-${lastId}`).classList.remove('finished');
+            updateDisplay(lastId);
+            
+            // タイマーが全員ゴールで止まっていた場合、自動で再開
             if (!isRunning && elapsedTime > 0) toggleTimer(true);
-            lastAction = null;
+            
+            if (navigator.vibrate) navigator.vibrate(40);
         }
     }
 
-    function updateLogText(id) {
+    function updateDisplay(id) {
         const student = studentData[id];
         const unit = document.getElementById('unit-label').value;
+        const logEl = document.getElementById(`log-data-${id}`);
+        
         if (student.laps.length === 0) {
-            document.getElementById(`log-data-${id}`).innerText = "待機中";
+            logEl.innerText = "待機中";
         } else {
             const last = student.laps[student.laps.length-1];
-            const prefix = last.type === 'goal' ? 'GOAL' : unit + student.laps.length;
-            document.getElementById(`log-data-${id}`).innerText = `${prefix}: ${last.lap.toFixed(2)}s`;
+            const label = last.type === 'goal' ? 'GOAL' : unit + student.laps.length;
+            logEl.innerText = `${label}: ${last.lap.toFixed(2)}s`;
         }
     }
 
+    /* 共通処理：分析・保存など */
     function changeStudentCount(v) {
-        if(elapsedTime > 0) return alert("RESETしてください");
+        if(elapsedTime > 0) return;
         studentCount = Math.max(1, Math.min(20, studentCount + v));
         document.getElementById('student-count-lbl').innerText = studentCount + " 人";
         initStudents();
     }
     function resetTimer() {
         if(elapsedTime > 0 && !confirm("消去しますか？")) return;
-        clearInterval(timerInterval); isRunning = false; elapsedTime = 0; lastAction = null;
+        clearInterval(timerInterval); isRunning = false; elapsedTime = 0;
         document.getElementById('main-clock').innerText = '00:00.00';
         document.getElementById('start-btn').innerText = 'START';
         document.getElementById('start-btn').style.background = 'var(--success)';
@@ -235,85 +237,52 @@
         if (!studentData[id].laps.length) return;
         currentTarget = id;
         document.getElementById('modal-overlay').style.display = 'flex';
-        document.getElementById('nav-header').style.display = 'flex';
         updateGraph();
     }
     function showGlobalGraph() {
         currentTarget = 'all';
         document.getElementById('modal-overlay').style.display = 'flex';
-        document.getElementById('nav-header').style.display = 'none';
         updateGraph();
     }
     function navigatePlayer(dir) {
         let nextId = currentTarget + dir;
         if (nextId > studentCount) nextId = 1; if (nextId < 1) nextId = studentCount;
-        let count = 0;
-        while (!studentData[nextId].laps.length && count < studentCount) {
-            nextId += dir; if (nextId > studentCount) nextId = 1; if (nextId < 1) nextId = studentCount; count++;
-        }
         currentTarget = nextId; updateGraph();
     }
-
     function updateGraph() {
-        document.getElementById('mode-split').className = `selector-btn ${currentMode==='split'?'active':''}`;
-        document.getElementById('mode-lap').className = `selector-btn ${currentMode==='lap'?'active':''}`;
+        document.getElementById('mode-split').style.borderColor = currentMode==='split'?'var(--primary)':'transparent';
+        document.getElementById('mode-lap').style.borderColor = currentMode==='lap'?'var(--primary)':'transparent';
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         let datasets = [], labels = [];
         const unit = document.getElementById('unit-label').value;
-
         if (currentTarget === 'all') {
             document.getElementById('graph-title').innerText = `全体比較`;
-            let maxL = 0;
             for (let i = 1; i <= studentCount; i++) {
                 if (studentData[i].laps.length) {
-                    datasets.push({ label: `No.${i}`, data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2.5, tension: 0.1, fill: false });
-                    maxL = Math.max(maxL, studentData[i].laps.length);
+                    datasets.push({ label: `No.${i}`, data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2, tension: 0.1, fill: false });
                 }
             }
-            labels = Array.from({length: maxL}, (_, i) => `${unit}${i+1}`);
+            labels = Array.from({length: 10}, (_, i) => `${unit}${i+1}`);
         } else {
-            document.getElementById('graph-title').innerText = `No.${currentTarget} 解析`;
+            document.getElementById('graph-title').innerText = `No.${currentTarget}`;
             labels = studentData[currentTarget].laps.map((_, i) => `${unit}${i+1}`);
-            datasets.push({ label: currentMode==='split'?'累計':'区間', data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: '#007AFF', borderWidth: 4, tension: 0.1, pointRadius: 6, fill: false });
+            datasets.push({ label: currentMode, data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: '#007AFF', borderWidth: 3, tension: 0.1, fill: false });
         }
-        chartInstance = new Chart(ctx, { 
-            type: 'line', 
-            data: { labels, datasets }, 
-            options: { 
-                responsive: true, maintainAspectRatio: false, 
-                plugins: { legend: { labels: { color: '#ccc', font: { size: 10 } } } },
-                scales: { 
-                    y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } }, 
-                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } } 
-                } 
-            } 
-        });
+        chartInstance = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { reverse: (currentMode==='lap'), grid: { color: '#333' } }, x: { grid: { color: '#333' } } } } });
     }
-
     async function shareGraph() {
-        try {
-            const blob = await new Promise(resolve => document.getElementById('chartCanvas').toBlob(resolve, 'image/png'));
-            const file = new File([blob], "result.png", { type: "image/png" });
-            if (navigator.share) {
-                await navigator.share({ files: [file], title: '計測結果', text: '計測データグラフ' });
-            } else {
-                alert("このブラウザは共有機能に対応していません。画像保存を使用してください。");
-            }
-        } catch (err) { console.error(err); }
+        const blob = await new Promise(r => document.getElementById('chartCanvas').toBlob(r));
+        const file = new File([blob], "graph.png", {type:"image/png"});
+        if(navigator.share) navigator.share({files:[file]});
     }
-
     function downloadGraph() {
-        const link = document.createElement('a');
-        link.download = `timer_result_${currentTarget}.png`;
-        link.href = document.getElementById('chartCanvas').toDataURL('image/png');
-        link.click();
+        const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL();
+        a.download = "graph.png"; a.click();
     }
-
     function copyData() {
-        let txt = "【計測結果】\n";
-        for (let i in studentData) if(studentData[i].laps.length) txt += `No.${i}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`;
-        navigator.clipboard.writeText(txt); alert("データをコピーしました");
+        let t = ""; for(let i in studentData) if(studentData[i].laps.length) t += `#${i}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`;
+        navigator.clipboard.writeText(t); alert("コピーしました");
     }
     initStudents();
 </script>
