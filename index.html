@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer - High Response</title>
+    <title>Track Timer Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -30,43 +30,41 @@
         
         .btn-start { background: var(--success); flex: 2; padding: 18px; font-size: 1.2rem; }
         .btn-undo { background: #444; flex: 1.2; padding: 18px; font-size: 1.2rem; border: 1px solid #666; }
-        
-        .btn-reset { background: var(--danger); padding: 10px; flex: 1; font-size: 0.9rem; }
-        .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); padding: 10px; flex: 1.2; font-size: 0.9rem; }
-        .count-ctrl { display: flex; align-items: center; background: #2c2c2e; border-radius: 10px; padding: 0 5px; flex: 1.5; justify-content: space-around; }
+        .btn-icon { background: #2c2c2e; padding: 10px; font-size: 1.2rem; min-width: 50px; }
 
-        #grid-container { flex: 1; padding: 10px; display: grid; gap: 12px; align-content: stretch; }
+        #grid-container { flex: 1; padding: 10px; display: grid; gap: 10px; align-content: stretch; }
         .student-cell { 
             background: #2c2c2e; border-radius: 18px; display: flex; 
-            overflow: hidden; border: 2px solid #444; 
-            transition: all 0.05s ease; position: relative;
+            overflow: hidden; border: 2px solid #444; position: relative;
         }
         .student-cell.is-pressed {
             background: #fff !important; border-color: #fff !important;
             transform: scale(0.92); box-shadow: 0 0 20px #fff; 
         }
-        .student-cell.is-pressed .lap-trigger { color: #000 !important; } 
-        .student-cell.is-pressed .goal-trigger { background: #ff3b30 !important; color: #fff !important; }
+        .student-cell.is-pressed * { color: #000 !important; }
 
-        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 2px solid #444; pointer-events: none; }
-        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; pointer-events: none; }
+        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 900; border-right: 2px solid #444; pointer-events: none; }
+        .st-name { font-size: 1.2rem; margin-bottom: 4px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%; }
+        .st-num { font-size: 0.8rem; color: var(--primary); opacity: 0.8; }
+        .goal-trigger { flex: 0.8; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; background: #3d1c1c; color: var(--danger); font-weight: bold; pointer-events: none; }
 
-        #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
-        .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 28px; padding: 20px; border: 1px solid #333; }
-        .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
-        .nav-btn { background: #333; color: var(--primary); padding: 10px 25px; border-radius: 10px; }
+        #log-area { height: 100px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
+        .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
+        
+        /* Modals */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; z-index: 1000; justify-content: center; align-items: center; }
+        .modal-body { background: #1c1c1e; width: 95%; max-width: 500px; border-radius: 24px; padding: 20px; border: 1px solid #333; max-height: 80vh; overflow-y: auto; }
+        
+        /* Settings List */
+        .settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; background: #2c2c2e; padding: 8px; border-radius: 10px; }
+        .settings-row input { background: #1c1c1e; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 8px; flex: 1; font-size: 1rem; }
+
+        .active-running { border-color: var(--primary) !important; }
+        .finished { opacity: 0.1; filter: grayscale(1); pointer-events: none; }
+        
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
         .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; }
         .selector-btn.active { color: var(--primary); background: #1a2530; border: 2px solid var(--primary); }
-        .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 25px; }
-        .btn-modal-action { padding: 18px 5px; font-size: 1rem; border-radius: 15px; }
-
-        #log-area { height: 80px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
-        .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
-        
-        .active-running { border-color: var(--primary) !important; }
-        .finished { opacity: 0.1; filter: grayscale(1); pointer-events: none; }
-        #unit-label { width: 50px; background: #333; color: #fff; border: none; border-radius: 4px; text-align: center; padding: 5px; }
     </style>
 </head>
 <body>
@@ -78,38 +76,45 @@
         <button class="btn-undo" onclick="undoLastAction()">↩ 戻す</button>
     </div>
     <div class="controls-sub">
-        <div class="count-ctrl">
-            <button onclick="changeStudentCount(-1)" style="background:transparent; font-size:1.2rem;">-</button>
-            <span id="student-count-lbl" style="color:#fff; font-weight:bold; min-width:30px; text-align:center;">1人</span>
-            <button onclick="changeStudentCount(1)" style="background:transparent; font-size:1.2rem;">+</button>
-        </div>
-        <input type="text" id="unit-label" value="Lap">
-        <button class="btn-graph" onclick="showGlobalGraph()">分析</button>
-        <button class="btn-reset" onclick="resetTimer()">RESET</button>
-        <button onclick="copyData()" style="padding:10px; background:#333; border-radius:10px;">📋</button>
+        <button class="btn-icon" onclick="openSettings()">⚙️ 設定</button>
+        <button class="btn-icon" onclick="showGlobalGraph()" style="color:var(--purple); flex:1;">📈 分析</button>
+        <button class="btn-icon" onclick="copyData()" style="flex:0.5;">📋</button>
+        <button class="btn-icon" onclick="resetTimer()" style="color:var(--danger);">RESET</button>
     </div>
 </header>
 
 <div id="grid-container"></div>
 <div id="log-area"></div>
 
-<div id="modal-overlay" onclick="closeModal()">
+<div id="settings-modal" class="modal-overlay" onclick="closeSettings()">
     <div class="modal-body" onclick="event.stopPropagation()">
-        <div class="graph-header" id="nav-header">
-            <button class="nav-btn" onclick="navigatePlayer(-1)">◀</button>
+        <h3 style="color:#fff; margin-top:0;">計測設定</h3>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; background:#2c2c2e; padding:15px; border-radius:15px;">
+            <span style="color:#fff;">人数: <b id="st-count-display">1</b>人</span>
+            <div style="display:flex; gap:10px;">
+                <button onclick="changeStudentCount(-1)" style="padding:10px 20px; background:#444;">-</button>
+                <button onclick="changeStudentCount(1)" style="padding:10px 20px; background:var(--primary);">+</button>
+            </div>
+        </div>
+        <div style="margin-bottom:10px; color:#888; font-size:0.8rem;">名前入力（空欄なら番号）</div>
+        <div id="name-inputs-list"></div>
+        <button onclick="closeSettings()" style="width:100%; padding:15px; background:var(--success); margin-top:20px; font-size:1.1rem;">完了</button>
+    </div>
+</div>
+
+<div id="graph-modal" class="modal-overlay" onclick="closeGraph()">
+    <div class="modal-body" onclick="event.stopPropagation()" style="max-width:600px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <button onclick="navigatePlayer(-1)" style="padding:10px; background:#333;">◀</button>
             <h3 id="graph-title" style="color:#fff; margin:0;">解析</h3>
-            <button class="nav-btn" onclick="navigatePlayer(1)">▶</button>
+            <button onclick="navigatePlayer(1)" style="padding:10px; background:#333;">▶</button>
         </div>
         <div class="mode-selector">
             <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計</button>
             <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間</button>
         </div>
         <div style="height: 280px;"><canvas id="chartCanvas"></canvas></div>
-        <div class="action-bar">
-            <button class="btn-modal-action" style="background:#444;" onclick="closeModal()">閉じる</button>
-            <button class="btn-modal-action" style="background:var(--primary);" onclick="downloadGraph()">保存</button>
-            <button class="btn-modal-action" style="background:var(--success);" onclick="shareGraph()">共有</button>
-        </div>
+        <button onclick="closeGraph()" style="width:100%; padding:15px; background:#444; margin-top:15px;">閉じる</button>
     </div>
 </div>
 
@@ -119,24 +124,39 @@
     let currentTarget = 'all', currentMode = 'lap';
     let actionHistory = [];
 
-    function initStudents() {
+    // 初期化
+    function initData() {
+        for (let i = 1; i <= 20; i++) {
+            if (!studentData[i]) {
+                studentData[i] = { name: "", laps: [], lastTime: 0, finished: false };
+            }
+        }
+    }
+
+    function renderGrid() {
         const container = document.getElementById('grid-container');
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
-        studentData = {}; actionHistory = [];
+        
         let cols = studentCount <= 1 ? 1 : (studentCount <= 4 ? 2 : 3);
         container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
 
         for (let i = 1; i <= studentCount; i++) {
-            studentData[i] = { laps: [], lastTime: 0, finished: false };
-            const cell = document.createElement('div');
-            cell.className = 'student-cell';
-            cell.id = `cell-${i}`;
-            cell.innerHTML = `<div class="lap-trigger"><span>#${i}</span></div><div class="goal-trigger">GOAL</div>`;
+            const data = studentData[i];
+            const displayName = data.name || `#${i}`;
             
-            // タッチとクリックの重複防止用
+            const cell = document.createElement('div');
+            cell.className = 'student-cell' + (data.finished ? ' finished' : '') + (elapsedTime > 0 ? ' active-running' : '');
+            cell.id = `cell-${i}`;
+            cell.innerHTML = `
+                <div class="lap-trigger">
+                    <div class="st-name">${displayName}</div>
+                    <div class="st-num">LAP ${data.laps.length}</div>
+                </div>
+                <div class="goal-trigger">GOAL</div>`;
+            
             const handlePress = (e) => {
-                if (e.type === 'touchstart') e.preventDefault(); // ゴーストクリック防止
+                if (e.type === 'touchstart') e.preventDefault();
                 if (!isRunning || studentData[i].finished) return;
                 cell.classList.add('is-pressed');
                 if (navigator.vibrate) navigator.vibrate(20);
@@ -145,41 +165,43 @@
             const handleRelease = (e) => {
                 if (!cell.classList.contains('is-pressed')) return;
                 cell.classList.remove('is-pressed');
-                
                 const rect = cell.getBoundingClientRect();
-                // タッチ座標またはマウス座標を取得
                 const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-                const touchPosition = clientX - rect.left;
-                
-                if (touchPosition > rect.width * 0.6) recordGoal(i);
+                if ((clientX - rect.left) > rect.width * 0.7) recordGoal(i);
                 else recordLap(i);
             };
 
-            // パッシブをfalseにしてpreventDefaultを有効にする
             cell.addEventListener('touchstart', handlePress, {passive: false});
             cell.addEventListener('touchend', handleRelease, {passive: false});
             cell.addEventListener('mousedown', handlePress);
             cell.addEventListener('mouseup', handleRelease);
 
             container.appendChild(cell);
-            logArea.innerHTML += `<div class="log-row" id="log-row-${i}" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
+            
+            logArea.innerHTML += `
+                <div class="log-row" onclick="showIndividualGraph(${i})">
+                    <span style="color:var(--primary); font-weight:bold; width:80px; overflow:hidden;">${displayName}</span>
+                    <span id="log-data-${i}" style="flex:1">待機中</span>
+                    <span>📈</span>
+                </div>`;
+            updateLogText(i);
         }
     }
 
+    // タイマー処理
     function toggleTimer(forceStart = false) {
         const btn = document.getElementById('start-btn');
         if (!isRunning || forceStart) {
             if (forceStart && isRunning) return; 
             startTime = elapsedTime === 0 ? Date.now() : Date.now() - elapsedTime;
             if (elapsedTime === 0) {
-                for(let i=1; i<=studentCount; i++) studentData[i].lastTime = startTime;
+                for(let i=1; i<=20; i++) studentData[i].lastTime = startTime;
                 document.querySelectorAll('.student-cell').forEach(el => el.classList.add('active-running'));
             }
             timerInterval = setInterval(() => {
                 elapsedTime = Date.now() - startTime;
                 let s = elapsedTime / 1000;
-                let m = Math.floor(s / 60);
-                document.getElementById('main-clock').innerText = `${String(m).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
+                document.getElementById('main-clock').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
             }, 50);
             isRunning = true;
             btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
@@ -198,7 +220,7 @@
         studentData[id].laps.push({ split, lap });
         studentData[id].lastTime = now;
         actionHistory.push(id);
-        updateLogText(id);
+        updateUI(id);
     }
 
     function recordGoal(id) {
@@ -206,111 +228,145 @@
         recordLap(id);
         studentData[id].finished = true;
         document.getElementById(`cell-${id}`).classList.add('finished');
-        const allFinished = Object.values(studentData).every(s => s.finished);
-        if (allFinished) toggleTimer();
+        if (Object.values(studentData).slice(0, studentCount).every(s => s.finished)) toggleTimer();
+    }
+
+    function updateUI(id) {
+        updateLogText(id);
+        const cell = document.getElementById(`cell-${id}`);
+        if (cell) cell.querySelector('.st-num').innerText = `LAP ${studentData[id].laps.length}`;
+    }
+
+    function updateLogText(id) {
+        const display = document.getElementById(`log-data-${id}`);
+        if (!display) return;
+        const laps = studentData[id].laps;
+        display.innerText = laps.length === 0 ? "待機中" : `Lap${laps.length}: ${laps[laps.length-1].lap.toFixed(2)}s`;
     }
 
     function undoLastAction() {
         if (actionHistory.length === 0) return;
-        const lastId = actionHistory.pop();
-        const student = studentData[lastId];
-        if (student.laps.length > 0) {
-            student.laps.pop();
-            student.finished = false;
-            student.lastTime = student.laps.length > 0 
-                ? startTime + (student.laps[student.laps.length - 1].split * 1000) 
-                : startTime;
-            document.getElementById(`cell-${lastId}`).classList.remove('finished');
-            updateLogText(lastId);
-            if (!isRunning && elapsedTime > 0) toggleTimer(true);
-            if (navigator.vibrate) navigator.vibrate([30, 30]);
-        }
+        const id = actionHistory.pop();
+        const s = studentData[id];
+        s.laps.pop();
+        s.finished = false;
+        s.lastTime = s.laps.length > 0 ? startTime + (s.laps[s.laps.length-1].split * 1000) : startTime;
+        renderGrid();
+        if (!isRunning && elapsedTime > 0) toggleTimer(true);
     }
 
-    function updateLogText(id) {
-        const student = studentData[id];
-        const unit = document.getElementById('unit-label').value;
-        const display = document.getElementById(`log-data-${id}`);
-        display.innerText = student.laps.length === 0 ? "待機中" : `${unit}${student.laps.length}: ${student.laps[student.laps.length - 1].lap.toFixed(2)}s`;
+    // 設定関連
+    function openSettings() {
+        const list = document.getElementById('name-inputs-list');
+        list.innerHTML = '';
+        for (let i = 1; i <= studentCount; i++) {
+            const div = document.createElement('div');
+            div.className = 'settings-row';
+            div.innerHTML = `<span>#${i}</span><input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value" placeholder="名前を入力...">`;
+            list.appendChild(div);
+        }
+        document.getElementById('st-count-display').innerText = studentCount;
+        document.getElementById('settings-modal').style.display = 'flex';
+    }
+
+    function closeSettings() {
+        document.getElementById('settings-modal').style.display = 'none';
+        renderGrid();
     }
 
     function changeStudentCount(v) {
-        if(elapsedTime > 0) return alert("RESETしてください");
+        if (elapsedTime > 0) return alert("計測中は人数を変更できません");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
-        document.getElementById('student-count-lbl').innerText = studentCount + "人";
-        initStudents();
+        document.getElementById('st-count-display').innerText = studentCount;
+        openSettings();
     }
+
     function resetTimer() {
         if(elapsedTime > 0 && !confirm("データを消去しますか？")) return;
         clearInterval(timerInterval); isRunning = false; elapsedTime = 0; actionHistory = [];
         document.getElementById('main-clock').innerText = '00:00.00';
         document.getElementById('start-btn').innerText = 'START';
         document.getElementById('start-btn').style.background = 'var(--success)';
-        initStudents();
+        for(let i in studentData) { studentData[i].laps = []; studentData[i].finished = false; }
+        renderGrid();
     }
-    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+    // 分析・グラフ関連
+    function showGlobalGraph() { currentTarget = 'all'; openGraph(); }
+    function showIndividualGraph(id) { if(studentData[id].laps.length) { currentTarget = id; openGraph(); } }
+    function openGraph() { document.getElementById('graph-modal').style.display = 'flex'; updateGraph(); }
+    function closeGraph() { document.getElementById('graph-modal').style.display = 'none'; }
     function switchMode(m) { currentMode = m; updateGraph(); }
-    function showIndividualGraph(id) {
-        if (!studentData[id].laps.length) return;
-        currentTarget = id;
-        document.getElementById('modal-overlay').style.display = 'flex';
-        document.getElementById('nav-header').style.display = 'flex';
-        updateGraph();
-    }
-    function showGlobalGraph() {
-        currentTarget = 'all';
-        document.getElementById('modal-overlay').style.display = 'flex';
-        document.getElementById('nav-header').style.display = 'none';
-        updateGraph();
-    }
-    function navigatePlayer(dir) {
-        let nextId = currentTarget + dir;
-        if (nextId > studentCount) nextId = 1; if (nextId < 1) nextId = studentCount;
-        while (!studentData[nextId].laps.length) {
-            nextId += dir;
-            if (nextId > studentCount) nextId = 1; if (nextId < 1) nextId = studentCount;
-        }
-        currentTarget = nextId; updateGraph();
-    }
+
     function updateGraph() {
         document.getElementById('mode-split').className = `selector-btn ${currentMode==='split'?'active':''}`;
         document.getElementById('mode-lap').className = `selector-btn ${currentMode==='lap'?'active':''}`;
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         let datasets = [], labels = [];
-        const unit = document.getElementById('unit-label').value;
+
         if (currentTarget === 'all') {
-            document.getElementById('graph-title').innerText = `全体比較`;
+            document.getElementById('graph-title').innerText = "全体比較";
             let maxL = 0;
             for (let i = 1; i <= studentCount; i++) {
                 if (studentData[i].laps.length) {
-                    datasets.push({ label: `No.${i}`, data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2.5, tension: 0.1, fill: false });
+                    datasets.push({ 
+                        label: studentData[i].name || `#${i}`, 
+                        data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), 
+                        borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2, tension: 0.1, fill: false 
+                    });
                     maxL = Math.max(maxL, studentData[i].laps.length);
                 }
             }
-            labels = Array.from({length: maxL}, (_, i) => `${unit}${i+1}`);
+            labels = Array.from({length: maxL}, (_, i) => `L${i+1}`);
         } else {
-            document.getElementById('graph-title').innerText = `No.${currentTarget} 解析`;
-            labels = studentData[currentTarget].laps.map((_, i) => `${unit}${i+1}`);
-            datasets.push({ label: currentMode==='split'?'累計':'区間', data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: '#007AFF', borderWidth: 4, tension: 0.1, pointRadius: 6, fill: false });
+            const name = studentData[currentTarget].name || `#${currentTarget}`;
+            document.getElementById('graph-title').innerText = `${name} の解析`;
+            labels = studentData[currentTarget].laps.map((_, i) => `L${i+1}`);
+            datasets.push({ 
+                label: currentMode==='split'?'累計':'区間', 
+                data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), 
+                borderColor: '#007AFF', borderWidth: 4, tension: 0.1, fill: false 
+            });
         }
-        chartInstance = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } }, x: { grid: { color: '#333' }, ticks: { color: '#aaa' } } } } });
+        chartInstance = new Chart(ctx, { 
+            type: 'line', 
+            data: { labels, datasets }, 
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                scales: { 
+                    y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } },
+                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } }
+                },
+                plugins: { legend: { labels: { color: '#fff' } } }
+            } 
+        });
     }
-    async function shareGraph() {
-        const blob = await new Promise(resolve => document.getElementById('chartCanvas').toBlob(resolve));
-        const file = new File([blob], "result.png", { type: "image/png" });
-        if (navigator.share) navigator.share({ files: [file] });
+
+    function navigatePlayer(dir) {
+        if (currentTarget === 'all') { currentTarget = 1; }
+        else {
+            currentTarget += dir;
+            if (currentTarget > studentCount) currentTarget = 1;
+            if (currentTarget < 1) currentTarget = studentCount;
+        }
+        updateGraph();
     }
-    function downloadGraph() {
-        const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL();
-        a.download = `result.png`; a.click();
-    }
+
     function copyData() {
         let txt = "【計測結果】\n";
-        for (let i in studentData) if(studentData[i].laps.length) txt += `No.${i}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`;
+        for (let i = 1; i <= studentCount; i++) {
+            const s = studentData[i];
+            if(s.laps.length) {
+                const name = s.name || `#${i}`;
+                txt += `${name}: ${s.laps.map(l=>l.lap.toFixed(2)).join(' / ')}\n`;
+            }
+        }
         navigator.clipboard.writeText(txt); alert("コピーしました");
     }
-    initStudents();
+
+    initData();
+    renderGrid();
 </script>
 </body>
 </html>
