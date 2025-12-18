@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer - High Response</title>
+    <title>Track Timer - With Undo</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -38,16 +38,13 @@
             position: relative;
         }
 
-        /* -------------------------------------------
-           ★ 押し心地の核心：触れた瞬間の強力な光
-        ------------------------------------------- */
         .student-cell.is-pressed {
-            background: #fff !important; /* 背景を真っ白に（一瞬光る） */
+            background: #fff !important;
             border-color: #fff !important;
-            transform: scale(0.92); /* 大きく凹ませる */
-            box-shadow: 0 0 20px #fff; /* 周囲を光らせる */
+            transform: scale(0.92);
+            box-shadow: 0 0 20px #fff;
         }
-        .student-cell.is-pressed .lap-trigger { color: #000 !important; } /* 文字を反転 */
+        .student-cell.is-pressed .lap-trigger { color: #000 !important; }
         .student-cell.is-pressed .goal-trigger { background: #ff3b30 !important; color: #fff !important; }
 
         .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 2px solid #444; pointer-events: none; }
@@ -57,17 +54,19 @@
         .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 20px; border: 1px solid #333; }
         .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
         .nav-btn { background: #333; color: var(--primary); padding: 10px 25px; border-radius: 10px; font-size: 1.2rem; }
+        
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
         .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; }
         .selector-btn.active { color: var(--primary); background: #1a2530; border: 2px solid var(--primary); }
-        .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
 
         #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
         .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
         
-        .config-bar { display: flex; align-items: center; justify-content: center; gap: 8px; color: #aaa; font-size: 13px; }
+        .config-bar { display: flex; align-items: center; justify-content: center; gap: 8px; color: #aaa; font-size: 13px; padding: 5px; }
         .active-running { border-color: var(--primary) !important; }
         .finished { opacity: 0.1; filter: grayscale(1); pointer-events: none; }
+        
+        .btn-undo { background: #444; color: #eee; padding: 5px 12px; border-radius: 6px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -81,10 +80,11 @@
     </div>
     <div class="config-bar">
         <button onclick="changeStudentCount(-1)" style="padding:5px 15px; background:#333;">➖</button>
-        <span id="student-count-lbl" style="color:#fff; font-weight:bold; min-width:35px; text-align:center;">1 人</span>
+        <span id="student-count-lbl" style="color:#fff; min-width:35px; text-align:center;">1 人</span>
         <button onclick="changeStudentCount(1)" style="padding:5px 15px; background:#333;">➕</button>
-        <input type="text" id="unit-label" style="width:50px; background:#333; color:#fff; border:none; border-radius:4px; text-align:center;" value="Lap">
-        <button onclick="copyData()" style="padding:5px 10px; background:#333;">コピー</button>
+        <input type="text" id="unit-label" style="width:45px; background:#333; color:#fff; border:none; text-align:center;" value="Lap">
+        <button class="btn-undo" onclick="undoLastAction()">↩ 戻す</button>
+        <button onclick="copyData()" style="padding:5px 8px; background:#333; font-size:12px;">コピー</button>
     </div>
 </header>
 
@@ -103,10 +103,9 @@
             <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間</button>
         </div>
         <div style="height: 280px;"><canvas id="chartCanvas"></canvas></div>
-        <div class="action-bar">
-            <button style="background:#444;" onclick="closeModal()">閉じる</button>
-            <button style="background:var(--primary);" onclick="downloadGraph()">画像保存</button>
-            <button style="background:var(--success);" onclick="shareGraph()">共有</button>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
+            <button style="background:#444; padding:12px;" onclick="closeModal()">閉じる</button>
+            <button style="background:var(--success); padding:12px;" onclick="shareGraph()">結果を共有</button>
         </div>
     </div>
 </div>
@@ -115,6 +114,7 @@
     let startTime = 0, elapsedTime = 0, timerInterval = null, isRunning = false;
     let studentCount = 1, studentData = {}, chartInstance = null;
     let currentTarget = 'all', currentMode = 'lap';
+    let lastAction = null; // UNDO用
 
     function initStudents() {
         const container = document.getElementById('grid-container');
@@ -136,17 +136,15 @@
             
             const onStart = (e) => {
                 if (!isRunning || studentData[i].finished) return;
-                cell.classList.add('is-pressed'); // 瞬時に光らせる
+                cell.classList.add('is-pressed');
                 if (navigator.vibrate) navigator.vibrate(20);
             };
 
             const onEnd = (e) => {
                 if (!cell.classList.contains('is-pressed')) return;
                 cell.classList.remove('is-pressed');
-                
                 const rect = cell.getBoundingClientRect();
                 const touchX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - rect.left;
-                
                 if (touchX > rect.width * 0.6) recordGoal(i);
                 else recordLap(i);
             };
@@ -155,15 +153,15 @@
             cell.addEventListener('touchend', onEnd, {passive: true});
             cell.addEventListener('mousedown', onStart);
             cell.addEventListener('mouseup', onEnd);
-
             container.appendChild(cell);
-            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
+            logArea.innerHTML += `<div class="log-row" id="log-row-${i}" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
         }
     }
 
-    function toggleTimer() {
+    function toggleTimer(forceStart = false) {
         const btn = document.getElementById('start-btn');
-        if (!isRunning) {
+        if (!isRunning || forceStart) {
+            if (forceStart && isRunning) return; 
             startTime = elapsedTime === 0 ? Date.now() : Date.now() - elapsedTime;
             if (elapsedTime === 0) {
                 for(let i=1; i<=studentCount; i++) studentData[i].lastTime = startTime;
@@ -184,28 +182,61 @@
         }
     }
 
-    function recordLap(id) {
+    function recordLap(id, type = 'lap') {
         if (!isRunning || studentData[id].finished) return;
         const now = Date.now();
-        const split = (now - startTime) / 1000;
         const lap = (now - studentData[id].lastTime) / 1000;
-        studentData[id].laps.push({ split, lap });
+        const split = (now - startTime) / 1000;
+        studentData[id].laps.push({ split, lap, type });
         studentData[id].lastTime = now;
-        document.getElementById(`log-data-${id}`).innerText = `${document.getElementById('unit-label').value}${studentData[id].laps.length}: ${lap.toFixed(2)}s`;
+        lastAction = { id, type }; // UNDO用に保存
+        updateLogText(id);
     }
 
     function recordGoal(id) {
-        if (!isRunning || studentData[id].finished) return;
-        recordLap(id);
+        recordLap(id, 'goal');
         studentData[id].finished = true;
         document.getElementById(`cell-${id}`).classList.add('finished');
-        
-        // 自動停止
-        const allFinished = Object.values(studentData).every(s => s.finished);
-        if (allFinished) toggleTimer();
+        if (Object.values(studentData).every(s => s.finished)) toggleTimer(); // 全員終了で停止
     }
 
-    /* グラフ等の共通ロジック */
+    function undoLastAction() {
+        if (!lastAction) return alert("戻せる操作がありません");
+        const { id, type } = lastAction;
+        const student = studentData[id];
+        
+        if (student.laps.length > 0) {
+            student.laps.pop();
+            student.finished = false;
+            // 前のラップの時間に戻す
+            student.lastTime = student.laps.length > 0 
+                ? startTime + (student.laps[student.laps.length-1].split * 1000) 
+                : startTime;
+            
+            document.getElementById(`cell-${id}`).classList.remove('finished');
+            updateLogText(id);
+            
+            // もしタイマーが止まっていたら再開
+            if (!isRunning && elapsedTime > 0) toggleTimer(true);
+            
+            lastAction = null; // 1回分のみ
+            if (navigator.vibrate) navigator.vibrate([30, 30]);
+        }
+    }
+
+    function updateLogText(id) {
+        const student = studentData[id];
+        const unit = document.getElementById('unit-label').value;
+        if (student.laps.length === 0) {
+            document.getElementById(`log-data-${id}`).innerText = "待機中";
+        } else {
+            const last = student.laps[student.laps.length-1];
+            const prefix = last.type === 'goal' ? 'GOAL' : unit + student.laps.length;
+            document.getElementById(`log-data-${id}`).innerText = `${prefix}: ${last.lap.toFixed(2)}s`;
+        }
+    }
+
+    /* 以下、共通ユーティリティ */
     function changeStudentCount(v) {
         if(elapsedTime > 0) return alert("RESETしてください");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
@@ -214,7 +245,7 @@
     }
     function resetTimer() {
         if(elapsedTime > 0 && !confirm("消去しますか？")) return;
-        clearInterval(timerInterval); isRunning = false; elapsedTime = 0;
+        clearInterval(timerInterval); isRunning = false; elapsedTime = 0; lastAction = null;
         document.getElementById('main-clock').innerText = '00:00.00';
         document.getElementById('start-btn').innerText = 'START';
         document.getElementById('start-btn').style.background = 'var(--success)';
@@ -273,12 +304,8 @@
         const file = new File([blob], "result.png", { type: "image/png" });
         if (navigator.share) navigator.share({ files: [file] });
     }
-    function downloadGraph() {
-        const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL();
-        a.download = `result.png`; a.click();
-    }
     function copyData() {
-        let txt = "【計測】\n";
+        let txt = "【計測結果】\n";
         for (let i in studentData) if(studentData[i].laps.length) txt += `No.${i}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`;
         navigator.clipboard.writeText(txt); alert("コピーしました");
     }
