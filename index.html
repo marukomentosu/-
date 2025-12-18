@@ -28,11 +28,9 @@
         button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: white; transition: opacity 0.1s; }
         button:active { opacity: 0.7; }
         
-        /* メインボタン（STARTと戻す） */
         .btn-start { background: var(--success); flex: 2; padding: 18px; font-size: 1.2rem; }
         .btn-undo { background: #444; flex: 1.2; padding: 18px; font-size: 1.2rem; border: 1px solid #666; }
         
-        /* サブボタン */
         .btn-reset { background: var(--danger); padding: 10px; flex: 1; font-size: 0.9rem; }
         .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); padding: 10px; flex: 1.2; font-size: 0.9rem; }
         .count-ctrl { display: flex; align-items: center; background: #2c2c2e; border-radius: 10px; padding: 0 5px; flex: 1.5; justify-content: space-around; }
@@ -75,12 +73,10 @@
 
 <header>
     <div id="main-clock">00:00.00</div>
-    
     <div class="controls-main">
         <button id="start-btn" class="btn-start" onclick="toggleTimer()">START</button>
         <button class="btn-undo" onclick="undoLastAction()">↩ 戻す</button>
     </div>
-
     <div class="controls-sub">
         <div class="count-ctrl">
             <button onclick="changeStudentCount(-1)" style="background:transparent; font-size:1.2rem;">-</button>
@@ -138,25 +134,32 @@
             cell.id = `cell-${i}`;
             cell.innerHTML = `<div class="lap-trigger"><span>#${i}</span></div><div class="goal-trigger">GOAL</div>`;
             
-            const onStart = (e) => {
+            // タッチとクリックの重複防止用
+            const handlePress = (e) => {
+                if (e.type === 'touchstart') e.preventDefault(); // ゴーストクリック防止
                 if (!isRunning || studentData[i].finished) return;
-                cell.classList.add('is-pressed'); 
+                cell.classList.add('is-pressed');
                 if (navigator.vibrate) navigator.vibrate(20);
             };
 
-            const onEnd = (e) => {
+            const handleRelease = (e) => {
                 if (!cell.classList.contains('is-pressed')) return;
                 cell.classList.remove('is-pressed');
+                
                 const rect = cell.getBoundingClientRect();
-                const touchPosition = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - rect.left;
+                // タッチ座標またはマウス座標を取得
+                const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+                const touchPosition = clientX - rect.left;
+                
                 if (touchPosition > rect.width * 0.6) recordGoal(i);
                 else recordLap(i);
             };
 
-            cell.addEventListener('touchstart', onStart, {passive: true});
-            cell.addEventListener('touchend', onEnd, {passive: true});
-            cell.addEventListener('mousedown', onStart);
-            cell.addEventListener('mouseup', onEnd);
+            // パッシブをfalseにしてpreventDefaultを有効にする
+            cell.addEventListener('touchstart', handlePress, {passive: false});
+            cell.addEventListener('touchend', handleRelease, {passive: false});
+            cell.addEventListener('mousedown', handlePress);
+            cell.addEventListener('mouseup', handleRelease);
 
             container.appendChild(cell);
             logArea.innerHTML += `<div class="log-row" id="log-row-${i}" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
