@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Ultimate Fix</title>
+    <title>Track Timer Pro - Manager</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -54,8 +54,9 @@
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: #1c1c1e; width: 95%; max-width: 500px; border-radius: 24px; padding: 20px; border: 1px solid #333; max-height: 80vh; overflow-y: auto; }
         
-        .settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; background: #2c2c2e; padding: 8px; border-radius: 10px; }
-        .settings-row input { background: #1c1c1e; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 8px; flex: 1; font-size: 1rem; }
+        .settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; background: #2c2c2e; padding: 10px; border-radius: 12px; }
+        .settings-row input[type="text"] { background: #1c1c1e; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 8px; flex: 1; font-size: 1rem; }
+        .settings-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--success); }
 
         .active-running { border-color: var(--primary) !important; }
         .finished { opacity: 0.1; filter: grayscale(1); pointer-events: none; }
@@ -65,6 +66,7 @@
         .selector-btn.active { color: var(--primary); background: #1a2530; border: 2px solid var(--primary); }
 
         .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 15px; }
+        .btn-del { background: #3d1c1c; color: var(--danger); padding: 10px; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -88,16 +90,10 @@
 
 <div id="settings-modal" class="modal-overlay" onclick="closeSettings()">
     <div class="modal-body" onclick="event.stopPropagation()">
-        <h3 style="color:#fff; margin-top:0;">計測設定</h3>
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; background:#2c2c2e; padding:15px; border-radius:15px;">
-            <span style="color:#fff;">人数: <b id="st-count-display">1</b>人</span>
-            <div style="display:flex; gap:10px;">
-                <button onclick="changeStudentCount(-1)" style="padding:10px 20px; background:#444;">-</button>
-                <button onclick="changeStudentCount(1)" style="padding:10px 20px; background:var(--primary);">+</button>
-            </div>
-        </div>
+        <h3 style="color:#fff; margin-top:0;">名前と表示の設定</h3>
+        <p style="color:#888; font-size:0.8rem; margin-bottom:15px;">チェックを外すとメイン画面から非表示になります</p>
         <div id="name-inputs-list"></div>
-        <button onclick="closeSettings()" style="width:100%; padding:15px; background:var(--success); margin-top:20px; font-size:1.1rem;">完了</button>
+        <button onclick="closeSettings()" style="width:100%; padding:18px; background:var(--success); margin-top:20px; font-size:1.1rem; border-radius:15px;">設定を適用して戻る</button>
     </div>
 </div>
 
@@ -123,20 +119,20 @@
 
 <script>
     let startTime = 0, elapsedTime = 0, timerInterval = null, isRunning = false;
-    let studentCount = 1, studentData = {}, chartInstance = null;
+    let studentData = {}, chartInstance = null;
     let currentTarget = 'all', currentMode = 'lap';
     let actionHistory = [];
+    const MAX_SLOTS = 20;
 
     function saveData() {
-        const state = { studentCount, studentData, elapsedTime, actionHistory };
-        localStorage.setItem('trackTimerState_final', JSON.stringify(state));
+        const state = { studentData, elapsedTime, actionHistory };
+        localStorage.setItem('trackTimerState_v3', JSON.stringify(state));
     }
 
     function loadData() {
-        const saved = localStorage.getItem('trackTimerState_final');
+        const saved = localStorage.getItem('trackTimerState_v3');
         if (saved) {
             const state = JSON.parse(saved);
-            studentCount = state.studentCount || 1;
             studentData = state.studentData || {};
             elapsedTime = state.elapsedTime || 0;
             actionHistory = state.actionHistory || [];
@@ -146,9 +142,9 @@
     }
 
     function initData() {
-        for (let i = 1; i <= 20; i++) {
+        for (let i = 1; i <= MAX_SLOTS; i++) {
             if (!studentData[i]) {
-                studentData[i] = { name: "", laps: [], finished: false };
+                studentData[i] = { name: "", laps: [], finished: false, visible: i <= 1 }; // 最初は1番目だけ表示
             }
         }
     }
@@ -162,19 +158,21 @@
         const container = document.getElementById('grid-container');
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
-        let cols = studentCount <= 1 ? 1 : (studentCount <= 4 ? 2 : 3);
+        
+        const activeIds = Object.keys(studentData).filter(id => studentData[id].visible);
+        let cols = activeIds.length <= 1 ? 1 : (activeIds.length <= 4 ? 2 : 3);
         container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
 
-        for (let i = 1; i <= studentCount; i++) {
-            const data = studentData[i];
+        activeIds.forEach(id => {
+            const data = studentData[id];
             const cell = document.createElement('div');
             cell.className = 'student-cell' + (data.finished ? ' finished' : '') + (elapsedTime > 0 ? ' active-running' : '');
-            cell.id = `cell-${i}`;
-            cell.innerHTML = `<div class="lap-trigger"><div class="st-name">${data.name || `#${i}`}</div><div class="st-num">LAP ${data.laps.length}</div></div><div class="goal-trigger">GOAL</div>`;
+            cell.id = `cell-${id}`;
+            cell.innerHTML = `<div class="lap-trigger"><div class="st-name">${data.name || `#${id}`}</div><div class="st-num">LAP ${data.laps.length}</div></div><div class="goal-trigger">GOAL</div>`;
             
             const handlePress = (e) => {
                 if (e.type === 'touchstart') e.preventDefault();
-                if (!isRunning || studentData[i].finished) return;
+                if (!isRunning || studentData[id].finished) return;
                 cell.classList.add('is-pressed');
                 if (navigator.vibrate) navigator.vibrate(20);
             };
@@ -184,8 +182,8 @@
                 cell.classList.remove('is-pressed');
                 const rect = cell.getBoundingClientRect();
                 const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-                if ((clientX - rect.left) > rect.width * 0.7) recordGoal(i);
-                else recordLap(i);
+                if ((clientX - rect.left) > rect.width * 0.7) recordGoal(id);
+                else recordLap(id);
             };
 
             cell.addEventListener('touchstart', handlePress, {passive: false});
@@ -194,9 +192,9 @@
             cell.addEventListener('mouseup', handleRelease);
             container.appendChild(cell);
             
-            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:80px; overflow:hidden;">${data.name || `#${i}`}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
-            updateLogText(i);
-        }
+            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${id})"><span style="color:var(--primary); font-weight:bold; width:80px; overflow:hidden;">${data.name || `#${id}`}</span><span id="log-data-${id}" style="flex:1">待機中</span><span>📈</span></div>`;
+            updateLogText(id);
+        });
     }
 
     function startTimerInternal() {
@@ -207,29 +205,25 @@
             updateClockDisplay();
         }, 50);
         isRunning = true;
-        const btn = document.getElementById('start-btn');
-        btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
+        document.getElementById('start-btn').innerText = 'STOP';
+        document.getElementById('start-btn').style.background = 'var(--warning)';
     }
 
     function stopTimerInternal() {
         clearInterval(timerInterval);
         isRunning = false;
-        const btn = document.getElementById('start-btn');
-        btn.innerText = 'START'; btn.style.background = 'var(--success)';
+        document.getElementById('start-btn').innerText = 'START';
+        document.getElementById('start-btn').style.background = 'var(--success)';
         saveData();
     }
 
-    function toggleTimer() {
-        if (!isRunning) startTimerInternal();
-        else stopTimerInternal();
-    }
+    function toggleTimer() { if (!isRunning) startTimerInternal(); else stopTimerInternal(); }
 
     function recordLap(id) {
         if (!isRunning || studentData[id].finished) return;
         const split = elapsedTime / 1000;
         const lastLapSplit = studentData[id].laps.length > 0 ? studentData[id].laps[studentData[id].laps.length-1].split : 0;
-        const lap = split - lastLapSplit;
-        studentData[id].laps.push({ split, lap });
+        studentData[id].laps.push({ split, lap: split - lastLapSplit });
         actionHistory.push(id);
         updateUI(id);
         saveData();
@@ -240,8 +234,8 @@
         recordLap(id);
         studentData[id].finished = true;
         renderGrid();
-        const allFinished = Object.values(studentData).slice(0, studentCount).every(s => s.finished);
-        if (allFinished) stopTimerInternal();
+        const activeIds = Object.keys(studentData).filter(i => studentData[i].visible);
+        if (activeIds.every(i => studentData[i].finished)) stopTimerInternal();
         saveData();
     }
 
@@ -263,12 +257,7 @@
         const id = actionHistory.pop();
         studentData[id].laps.pop();
         studentData[id].finished = false;
-        
-        // 全員ゴールで停止していた場合も、1人分戻せば計測は続行すべき
-        if (!isRunning && elapsedTime > 0) {
-            startTimerInternal();
-        }
-        
+        if (!isRunning && elapsedTime > 0) startTimerInternal();
         renderGrid();
         saveData();
     }
@@ -276,24 +265,31 @@
     function openSettings() {
         const list = document.getElementById('name-inputs-list');
         list.innerHTML = '';
-        for (let i = 1; i <= studentCount; i++) {
+        for (let i = 1; i <= MAX_SLOTS; i++) {
             const div = document.createElement('div');
             div.className = 'settings-row';
-            div.innerHTML = `<span>#${i}</span><input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value; saveData();" placeholder="名前...">`;
+            div.innerHTML = `
+                <input type="checkbox" ${studentData[i].visible ? 'checked' : ''} onchange="studentData[${i}].visible=this.checked; saveData();">
+                <span style="color:#888; width:25px;">${i}</span>
+                <input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value; if(this.value) studentData[${i}].visible=true; saveData();" placeholder="名前を入力...">
+                <button class="btn-del" onclick="deleteName(${i})">🗑️</button>
+            `;
             list.appendChild(div);
         }
-        document.getElementById('st-count-display').innerText = studentCount;
         document.getElementById('settings-modal').style.display = 'flex';
     }
 
-    function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; renderGrid(); }
-
-    function changeStudentCount(v) {
+    function deleteName(id) {
         if (elapsedTime > 0) return alert("計測中は変更できません");
-        studentCount = Math.max(1, Math.min(20, studentCount + v));
-        openSettings();
+        studentData[id].name = "";
+        studentData[id].visible = false;
+        studentData[id].laps = [];
+        studentData[id].finished = false;
         saveData();
+        openSettings();
     }
+
+    function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; renderGrid(); }
 
     function resetTimer() {
         if(elapsedTime > 0 && !confirm("記録を消去しますか？")) return;
@@ -315,14 +311,14 @@
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         let datasets = [], maxL = 0;
+        const activeIds = Object.keys(studentData).filter(i => studentData[i].visible && studentData[i].laps.length);
+
         if (currentTarget === 'all') {
             document.getElementById('graph-title').innerText = "全体比較";
-            for (let i = 1; i <= studentCount; i++) {
-                if (studentData[i].laps.length) {
-                    datasets.push({ label: studentData[i].name || `#${i}`, data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2, tension: 0.1, fill: false });
-                    maxL = Math.max(maxL, studentData[i].laps.length);
-                }
-            }
+            activeIds.forEach(id => {
+                datasets.push({ label: studentData[id].name || `#${id}`, data: studentData[id].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: `hsl(${id * 137}, 70%, 50%)`, borderWidth: 2, tension: 0.1, fill: false });
+                maxL = Math.max(maxL, studentData[id].laps.length);
+            });
         } else {
             document.getElementById('graph-title').innerText = (studentData[currentTarget].name || `#${currentTarget}`) + " 解析";
             datasets.push({ label: currentMode==='split'?'累計':'区間', data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: '#007AFF', borderWidth: 4, tension: 0.1, fill: false });
@@ -332,8 +328,15 @@
     }
 
     function navigatePlayer(dir) {
-        if (currentTarget === 'all') currentTarget = 1;
-        else { currentTarget += dir; if (currentTarget > studentCount) currentTarget = 1; if (currentTarget < 1) currentTarget = studentCount; }
+        const activeIds = Object.keys(studentData).filter(i => studentData[i].visible && studentData[i].laps.length);
+        if (activeIds.length === 0) return;
+        if (currentTarget === 'all') {
+            currentTarget = parseInt(activeIds[0]);
+        } else {
+            let idx = activeIds.indexOf(currentTarget.toString());
+            idx = (idx + dir + activeIds.length) % activeIds.length;
+            currentTarget = parseInt(activeIds[idx]);
+        }
         updateGraph();
     }
 
@@ -345,7 +348,9 @@
     function downloadGraph() { const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL(); a.download = `result.png`; a.click(); }
     function copyData() {
         let txt = "【計測結果】\n";
-        for (let i = 1; i <= studentCount; i++) { if(studentData[i].laps.length) txt += `${studentData[i].name || `#${i}`}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`; }
+        Object.keys(studentData).filter(i => studentData[i].visible && studentData[i].laps.length).forEach(id => {
+            txt += `${studentData[id].name || `#${id}`}: ${studentData[id].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`;
+        });
         navigator.clipboard.writeText(txt); alert("コピーしました");
     }
 
