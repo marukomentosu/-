@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - LINE Optimized</title>
+    <title>Track Timer Pro - Final Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #007AFF; --success: #4cd964; --danger: #ff3b30;
             --warning: #ff9500; --purple: #af52de; --bg: #000;
         }
-        /* iPhoneの長押しメニューや選択を無効化 */
         * { 
             box-sizing: border-box; 
             -webkit-tap-highlight-color: transparent; 
@@ -18,55 +17,51 @@
             -webkit-user-select: none;
             user-select: none;
         }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; touch-action: manipulation; }
 
         header { background: #1c1c1e; padding: 10px; z-index: 10; border-bottom: 1px solid #333; }
         #main-clock { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; text-align: center; color: #fff; }
         .controls { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
         
-        /* 上部操作ボタン */
         button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: white; }
         .btn-start { background: var(--success); flex: 2; padding: 12px; }
         .btn-stop { background: var(--warning); flex: 2; padding: 12px; }
         .btn-reset { background: var(--danger); flex: 1; padding: 12px; }
         .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); flex: 1.2; padding: 12px; }
 
-        /* 選手パネル */
         #grid-container { flex: 1; padding: 10px; display: grid; gap: 12px; align-content: stretch; }
         
         .student-cell { 
             background: #2c2c2e; border-radius: 18px; display: flex; 
             overflow: hidden; border: 1px solid #444; 
             transition: filter 0.1s ease, transform 0.05s ease;
-            touch-action: none; /* iPhoneでのスクロール誤動作防止 */
+            position: relative;
         }
 
-        /* 触れた瞬間の「暗くなる」設定 */
+        /* どこを押しても暗くなる設定 */
         .student-cell.is-pressed {
-            filter: brightness(0.4) !important; /* 強制的に暗くする */
-            transform: scale(0.96); /* わずかに小さくして「押した感」を出す */
+            filter: brightness(0.4) !important;
+            transform: scale(0.96);
         }
 
         .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444; pointer-events: none; }
         .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; pointer-events: none; }
 
-        /* 解析モーダル */
         #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 20px; border: 1px solid #333; }
         .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
         .nav-btn { background: #333; color: var(--primary); padding: 8px 20px; border-radius: 10px; font-size: 1.2rem; }
-        .nav-btn:active { filter: brightness(0.5); }
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
         .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; }
         .selector-btn.active { color: var(--primary); background: #1a2530; border: 1px solid var(--primary); }
         .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
 
-        #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
         .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
         
-        .config-bar { display: flex; align-items: center; justify-content: center; gap: 8px; color: #aaa; font-size: 13px; padding-bottom: 5px; }
+        .config-bar { display: flex; align-items: center; justify-content: center; gap: 8px; color: #aaa; font-size: 13px; }
         .active-running { border-color: var(--success) !important; }
-        .finished { opacity: 0.2; filter: grayscale(1); pointer-events: none; }
+        .finished { opacity: 0.15; filter: grayscale(1) brightness(0.5); pointer-events: none; }
     </style>
 </head>
 <body>
@@ -136,23 +131,24 @@
             cell.id = `cell-${i}`;
             cell.innerHTML = `
                 <div class="lap-trigger"><span>#${i}</span></div>
-                <div class="goal-trigger" id="goal-target-${i}">GOAL</div>
+                <div class="goal-trigger">GOAL</div>
             `;
             
-            // iPhone/LINEで確実に反応するイベントリスナー
+            // タッチ開始: 番号側・ゴール側問わず即座に暗くする
             const onStart = (e) => {
                 if (!isRunning || studentData[i].finished) return;
                 cell.classList.add('is-pressed');
                 if (navigator.vibrate) navigator.vibrate(15);
             };
 
+            // タッチ終了: クラスを外し、位置で判定
             const onEnd = (e) => {
                 if (!cell.classList.contains('is-pressed')) return;
                 cell.classList.remove('is-pressed');
                 
-                // タップ位置でLAPかGOALか判定
                 const rect = cell.getBoundingClientRect();
                 const touchX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - rect.left;
+                
                 if (touchX > rect.width * 0.6) recordGoal(i);
                 else recordLap(i);
             };
@@ -203,7 +199,13 @@
         recordLap(id);
         studentData[id].finished = true;
         document.getElementById(`cell-${id}`).classList.add('finished');
-        if (Object.values(studentData).every(d => d.finished)) toggleTimer();
+        document.getElementById(`cell-${id}`).classList.remove('active-running');
+
+        // 全員ゴールしたかチェックして自動停止
+        const allFinished = Object.values(studentData).every(s => s.finished);
+        if (allFinished) {
+            toggleTimer(); // STOPを実行
+        }
     }
 
     function changeStudentCount(v) {
@@ -239,10 +241,12 @@
         let nextId = currentTarget + dir;
         if (nextId > studentCount) nextId = 1;
         if (nextId < 1) nextId = studentCount;
-        while (!studentData[nextId].laps.length) {
+        let count = 0;
+        while (!studentData[nextId].laps.length && count < studentCount) {
             nextId += dir;
             if (nextId > studentCount) nextId = 1;
             if (nextId < 1) nextId = studentCount;
+            count++;
         }
         currentTarget = nextId;
         updateGraph();
@@ -285,7 +289,6 @@
             data: { labels, datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: currentTarget === 'all', labels: { color: '#aaa' } } },
                 scales: { 
                     y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } },
                     x: { grid: { color: '#333' }, ticks: { color: '#aaa' } }
