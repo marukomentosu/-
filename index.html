@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Minimalist</title>
+    <title>Track Timer Pro - Real Tactile</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #007AFF; --success: #4cd964; --danger: #ff3b30;
             --warning: #ff9500; --purple: #af52de; --bg: #000;
         }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; touch-action: manipulation; }
 
         header { background: #1c1c1e; padding: 10px; z-index: 10; border-bottom: 1px solid #333; }
         #main-clock { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; text-align: center; color: #fff; text-shadow: 0 0 10px var(--primary); }
@@ -19,48 +19,60 @@
         
         button { 
             border: none; border-radius: 12px; font-weight: bold; cursor: pointer; 
-            transition: all 0.05s ease; position: relative; top: 0;
-            box-shadow: 0 4px 0 rgba(0,0,0,0.6);
+            position: relative; top: 0; box-shadow: 0 4px 0 #000;
         }
-        button:active { top: 4px; box-shadow: 0 0px 0 rgba(0,0,0,0.6); filter: brightness(1.2); }
+        button:active { top: 2px; box-shadow: 0 1px 0 #000; filter: brightness(1.2); }
         
         .btn-start { background: var(--success); color: white; flex: 2; padding: 12px; }
         .btn-stop { background: var(--warning); color: white; flex: 2; padding: 12px; }
         .btn-reset { background: var(--danger); color: white; flex: 1; padding: 12px; }
         .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); flex: 1.2; padding: 12px; }
 
+        /* 選手タイル：スマホ用物理シミュレーション */
         #grid-container { flex: 1; padding: 10px; display: grid; gap: 12px; align-content: stretch; }
+        
         .student-cell { 
-            background: #2c2c2e; border-radius: 18px; display: flex; 
-            overflow: hidden; border: 1px solid #444; position: relative; top: 0;
-            box-shadow: 0 6px 0 #111; transition: all 0.05s ease;
+            background: #111; /* 底面の色 */
+            border-radius: 18px; position: relative; overflow: visible;
         }
-        .student-cell:active { top: 4px; box-shadow: 0 2px 0 #111; }
 
-        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444; background: #2c2c2e; }
-        .student-cell:active .lap-trigger { background: #333; box-shadow: inset 10px 10px 20px rgba(0,0,0,0.4); }
-        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; }
-        .student-cell:active .goal-trigger { background: var(--danger); color: white; box-shadow: inset -10px 10px 20px rgba(0,0,0,0.4); }
+        /* 実際に動く前面部分 */
+        .cell-content {
+            position: absolute; inset: 0;
+            background: #2c2c2e; border-radius: 18px; display: flex; 
+            border: 1px solid #444; top: -6px; /* 最初は浮いている */
+            transition: all 0.05s cubic-bezier(0.2, 0, 0, 1);
+            box-shadow: 0 6px 0 #000;
+            pointer-events: none; /* 下の要素のクリックを邪魔しない */
+        }
+
+        /* JavaScriptで付与する「押し込み」状態 */
+        .student-cell.is-pressed .cell-content {
+            top: 0;
+            box-shadow: 0 0 0 #000;
+            background: #3a3a3c;
+        }
+
+        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444; }
+        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; border-radius: 0 18px 18px 0; }
+
+        .student-cell.is-pressed .goal-trigger { background: var(--danger); color: white; }
 
         #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
-        .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; cursor: pointer; }
+        .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
 
         #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 20px; border: 1px solid #333; }
-        
         .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
-        .nav-btn { background: #333; color: var(--primary); padding: 8px 15px; border-radius: 8px; font-size: 1.2rem; box-shadow: 0 3px 0 #000; }
-        .nav-btn:active { top: 2px; box-shadow: 0 1px 0 #000; }
-        #graph-title { color: #fff; margin: 0; font-size: 1.2rem; }
-
+        .nav-btn { background: #333; color: var(--primary); padding: 8px 15px; border-radius: 8px; font-size: 1.2rem; }
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
         .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; border-bottom: 4px solid #111; }
         .selector-btn.active { border-color: var(--primary); color: var(--primary); background: #1a2530; }
-
         .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+
         .config-bar { display: flex; align-items: center; justify-content: center; gap: 10px; color: #aaa; font-size: 14px; }
         .unit-input { width: 70px; background: #333; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 5px; text-align: center; }
-        .active-running { border-color: var(--success) !important; }
+        .active-running .cell-content { border-color: var(--success) !important; }
         .finished { opacity: 0.15; filter: grayscale(1); pointer-events: none; }
     </style>
 </head>
@@ -93,14 +105,11 @@
             <h3 id="graph-title">解析</h3>
             <button class="nav-btn" onclick="navigatePlayer(1)">▶</button>
         </div>
-        
         <div class="mode-selector">
             <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計</button>
             <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間</button>
         </div>
-
         <div style="height: 300px;"><canvas id="chartCanvas"></canvas></div>
-        
         <div class="action-bar">
             <button style="background:#444; color:#fff;" onclick="closeModal()">閉じる</button>
             <button style="background:var(--primary); color:#fff;" onclick="downloadGraph()">画像保存</button>
@@ -120,11 +129,6 @@
         return `${String(m).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
     }
 
-    function updateClock() {
-        elapsedTime = Date.now() - startTime;
-        document.getElementById('main-clock').innerText = formatTime(elapsedTime);
-    }
-
     function initStudents() {
         const container = document.getElementById('grid-container');
         const logArea = document.getElementById('log-area');
@@ -137,11 +141,34 @@
 
         for (let i = 1; i <= studentCount; i++) {
             studentData[i] = { laps: [], lastTime: 0, finished: false };
-            container.innerHTML += `
-                <div class="student-cell" id="cell-${i}">
-                    <div class="lap-trigger" onclick="recordLap(${i})"><span>No.</span>${i}</div>
-                    <div class="goal-trigger" onclick="recordGoal(${i})">GOAL</div>
+            const cell = document.createElement('div');
+            cell.className = 'student-cell';
+            cell.id = `cell-${i}`;
+            cell.innerHTML = `
+                <div class="cell-content">
+                    <div class="lap-trigger" id="lap-${i}"><span>No.</span>${i}</div>
+                    <div class="goal-trigger" id="goal-${i}">GOAL</div>
                 </div>`;
+            
+            // タッチイベントの制御（これが押し心地の肝）
+            const handleTouch = (e, type, id) => {
+                if (type === 'start') {
+                    cell.classList.add('is-pressed');
+                    if (navigator.vibrate) navigator.vibrate(20);
+                } else {
+                    cell.classList.remove('is-pressed');
+                    if (e.target.id.includes('goal')) recordGoal(id);
+                    else recordLap(id);
+                }
+            };
+
+            cell.addEventListener('touchstart', (e) => handleTouch(e, 'start', i), {passive: true});
+            cell.addEventListener('touchend', (e) => handleTouch(e, 'end', i), {passive: true});
+            // PCブラウザ用
+            cell.addEventListener('mousedown', (e) => handleTouch(e, 'start', i));
+            cell.addEventListener('mouseup', (e) => handleTouch(e, 'end', i));
+
+            container.appendChild(cell);
             logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:35px;">#${i}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
         }
     }
@@ -154,7 +181,10 @@
                 for(let i=1; i<=studentCount; i++) studentData[i].lastTime = startTime;
                 document.querySelectorAll('.student-cell').forEach(el => el.classList.add('active-running'));
             }
-            timerInterval = setInterval(updateClock, 50);
+            timerInterval = setInterval(() => {
+                elapsedTime = Date.now() - startTime;
+                document.getElementById('main-clock').innerText = formatTime(elapsedTime);
+            }, 50);
             isRunning = true;
             btn.innerText = 'STOP'; btn.className = 'btn-stop';
         } else {
@@ -164,25 +194,25 @@
         }
     }
 
-    function recordLap(id, isGoal = false) {
+    function recordLap(id) {
         if (!isRunning || studentData[id].finished) return;
         const now = Date.now();
         const split = (now - startTime) / 1000;
         const lap = (now - studentData[id].lastTime) / 1000;
         studentData[id].laps.push({ split, lap });
         studentData[id].lastTime = now;
-        const unit = document.getElementById('unit-label').value;
-        document.getElementById(`log-data-${id}`).innerText = `${isGoal?'GOAL':unit+studentData[id].laps.length}: ${lap.toFixed(2)}s`;
-        if (navigator.vibrate) navigator.vibrate(25);
-        if (isGoal) {
-            studentData[id].finished = true;
-            document.getElementById(`cell-${id}`).classList.add('finished');
-            document.getElementById(`cell-${id}`).classList.remove('active-running');
-            if (Object.values(studentData).every(d => d.finished)) toggleTimer();
-        }
+        document.getElementById(`log-data-${id}`).innerText = `${document.getElementById('unit-label').value}${studentData[id].laps.length}: ${lap.toFixed(2)}s`;
     }
 
-    function recordGoal(id) { recordLap(id, true); }
+    function recordGoal(id) {
+        if (!isRunning || studentData[id].finished) return;
+        recordLap(id);
+        studentData[id].finished = true;
+        document.getElementById(`cell-${id}`).classList.add('finished');
+        if (Object.values(studentData).every(d => d.finished)) toggleTimer();
+    }
+
+    /* 以下、グラフ・ユーティリティ等は前回のロジックを継承 */
     function changeStudentCount(v) {
         if(elapsedTime > 0) return alert("RESETしてください");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
@@ -197,10 +227,8 @@
         document.getElementById('start-btn').className = 'btn-start';
         initStudents();
     }
-
     function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
     function switchMode(m) { currentMode = m; updateGraph(); }
-
     function showIndividualGraph(id) {
         if (!studentData[id].laps.length) return;
         currentTarget = id;
@@ -208,29 +236,23 @@
         document.getElementById('nav-header').style.display = 'flex';
         updateGraph();
     }
-
     function showGlobalGraph() {
         currentTarget = 'all';
         document.getElementById('modal-overlay').style.display = 'flex';
         document.getElementById('nav-header').style.display = 'none';
         updateGraph();
     }
-
     function navigatePlayer(dir) {
         let nextId = currentTarget + dir;
         if (nextId > studentCount) nextId = 1;
         if (nextId < 1) nextId = studentCount;
-        let count = 0;
-        while (!studentData[nextId].laps.length && count < studentCount) {
+        while (!studentData[nextId].laps.length) {
             nextId += dir;
             if (nextId > studentCount) nextId = 1;
             if (nextId < 1) nextId = studentCount;
-            count++;
         }
-        if (studentData[nextId].laps.length) {
-            currentTarget = nextId;
-            updateGraph();
-        }
+        currentTarget = nextId;
+        updateGraph();
     }
 
     function updateGraph() {
@@ -262,21 +284,16 @@
             datasets.push({
                 label: currentMode==='split'?'累計':'区間',
                 data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap),
-                borderColor: '#007AFF', borderWidth: 4, tension: 0.1, pointRadius: 7, pointBackgroundColor: '#007AFF', fill: false
+                borderColor: '#007AFF', borderWidth: 4, tension: 0.1, pointRadius: 7, fill: false
             });
         }
-
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: { labels, datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: currentTarget === 'all' },
-                    tooltip: { enabled: true, backgroundColor: 'rgba(255,255,255,0.9)', titleColor: '#000', bodyColor: '#000' }
-                },
                 scales: { 
-                    y: { reverse: (currentMode==='lap'), beginAtZero: false, grid: { color: '#222' }, ticks: { color: '#aaa' } },
+                    y: { reverse: (currentMode==='lap'), grid: { color: '#222' }, ticks: { color: '#aaa' } },
                     x: { grid: { color: '#222' }, ticks: { color: '#aaa' } }
                 }
             }
