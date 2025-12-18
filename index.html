@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Fixed Toggle</title>
+    <title>Track Timer Pro - Solid Control</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -18,7 +18,7 @@
         #main-clock { font-family: 'Courier New', monospace; font-size: 2.8rem; font-weight: bold; text-align: center; color: #333; line-height: 1; }
         .controls { display: flex; justify-content: center; gap: 5px; }
         
-        button { border: none; border-radius: 8px; padding: 10px; font-weight: bold; cursor: pointer; font-size: 13px; transition: opacity 0.2s; }
+        button { border: none; border-radius: 8px; padding: 10px; font-weight: bold; cursor: pointer; font-size: 13px; }
         .btn-start { background: var(--success); color: white; flex: 2; }
         .btn-stop { background: var(--warning); color: white; flex: 2; }
         .btn-reset { background: var(--danger); color: white; flex: 1; }
@@ -38,16 +38,16 @@
         .log-data { flex: 1; font-size: 12px; font-family: monospace; white-space: pre-line; color: #444; }
 
         .finished { filter: grayscale(1); opacity: 0.5; pointer-events: none; background: #eee !important; }
-        .active-running { border-color: var(--success) !important; box-shadow: 0 0 10px rgba(76, 217, 100, 0.5); }
+        .active-running { border-color: var(--success) !important; }
 
-        /* モーダルとトグルスイッチのスタイル */
-        #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); display:none; flex-direction:column; justify-content:center; padding: 15px; z-index: 1000; }
-        .modal-content { background: white; width: 100%; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        /* モーダル */
+        #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); display:none; flex-direction:column; justify-content:center; padding: 15px; z-index: 1000; }
+        .modal-content { background: white; width: 100%; border-radius: 20px; padding: 15px; }
         
-        /* 切り替えスイッチ */
-        .toggle-container { display: flex; background: #eee; border-radius: 10px; padding: 4px; margin: 15px 0; border: 1px solid #ddd; }
-        .toggle-btn { flex: 1; padding: 10px; text-align: center; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s; color: #666; }
-        .toggle-btn.active { background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.15); color: var(--primary); }
+        /* 切替ボタンエリア */
+        .mode-selector { display: flex; gap: 10px; margin: 10px 0; }
+        .mode-btn { flex: 1; padding: 12px; border-radius: 10px; border: 2px solid #ddd; background: #f8f8f8; font-weight: bold; color: #666; font-size: 14px; }
+        .mode-btn.active { border-color: var(--primary); background: #eef7ff; color: var(--primary); }
     </style>
 </head>
 <body>
@@ -72,20 +72,20 @@
 
 <div id="modal-overlay">
     <div class="modal-content" onclick="event.stopPropagation()">
-        <div id="graph-title" style="text-align:center; font-weight:bold; font-size: 16px;">解析グラフ</div>
+        <div id="graph-title" style="text-align:center; font-weight:bold; margin-bottom:5px;">解析グラフ</div>
         
-        <div class="toggle-container">
-            <div id="tgl-split" class="toggle-btn" onclick="setGraphMode('split')">スプリット</div>
-            <div id="tgl-lap" class="toggle-btn" onclick="setGraphMode('lap')">ラップ</div>
+        <div class="mode-selector">
+            <button id="btn-mode-split" class="mode-btn" onclick="setMode('split')">スプリット(累計)</button>
+            <button id="btn-mode-lap" class="mode-btn" onclick="setMode('lap')">ラップ(区間)</button>
         </div>
 
-        <div style="position: relative; height: 300px;">
+        <div style="position: relative; height: 250px;">
             <canvas id="chartCanvas"></canvas>
         </div>
         
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button style="flex:1; padding:14px; background:#f0f0f5; color:#333; border-radius:10px;" onclick="closeModal()">閉じる</button>
-            <button style="flex:1; padding:14px; background:var(--primary); color:white; border-radius:10px;" onclick="downloadGraph()">画像保存</button>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button style="flex:1; padding:12px; background:#666; color:white; border-radius:10px;" onclick="closeModal()">閉じる</button>
+            <button style="flex:1; padding:12px; background:var(--primary); color:white; border-radius:10px;" onclick="downloadGraph()">画像保存</button>
         </div>
     </div>
 </div>
@@ -93,8 +93,8 @@
 <script>
     let startTime = 0, elapsedTime = 0, timerInterval = null, isRunning = false;
     let studentCount = 1, studentData = {}, chartInstance = null;
-    let currentModalTarget = null; // nullなら全体、数値なら学生ID
-    let currentGraphMode = 'split'; // 'split' or 'lap'
+    let currentTarget = null; // 'all' or ID
+    let currentMode = 'split';
 
     function formatTime(ms) {
         let s = ms / 1000;
@@ -141,7 +141,7 @@
             logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})">
                 <div class="log-no">#${i}</div>
                 <div id="log-data-${i}" class="log-data">待機中...</div>
-                <div style="font-size:16px;">📈</div>
+                <div style="font-size:18px;">📈</div>
             </div>`;
         }
     }
@@ -150,7 +150,7 @@
         if (!isRunning || studentData[id].finished) return;
         const now = Date.now();
         const split = (now - startTime) / 1000;
-        const lap = (now - studentData[id].lastTime) / 1000;
+        const lap = (now - (studentData[id].lastTime || startTime)) / 1000;
         studentData[id].laps.push({ lap_no: studentData[id].laps.length + 1, split, lap });
         studentData[id].lastTime = now;
         document.getElementById(`log-data-${id}`).innerText = `${isGoal?'【GOAL】':'L'+studentData[id].laps.length}: ${lap.toFixed(2)}s\nSplit: ${split.toFixed(2)}s`;
@@ -170,7 +170,7 @@
     }
 
     function changeStudentCount(v) {
-        if(isRunning || elapsedTime > 0) return alert("リセットしてください");
+        if(isRunning || elapsedTime > 0) return alert("RESETしてください");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
         document.getElementById('student-count-lbl').innerText = studentCount;
         initStudents();
@@ -186,72 +186,69 @@
         initStudents();
     }
 
-    // --- グラフ表示ロジック ---
+    // --- グラフ切替ロジック ---
+    function setMode(mode) {
+        currentMode = mode;
+        drawChart();
+    }
+
     function showIndividualGraph(id) {
         if (!studentData[id].laps.length) return alert("データがありません");
-        currentModalTarget = id;
-        currentGraphMode = 'split'; 
-        openModal();
+        currentTarget = id;
+        currentMode = 'split'; 
+        document.getElementById('modal-overlay').style.display = 'flex';
+        drawChart();
     }
 
     function showGlobalGraph() {
         let hasData = false;
         for(let i=1; i<=studentCount; i++) if(studentData[i].laps.length) hasData = true;
         if(!hasData) return alert("データがありません");
-        currentModalTarget = 'all';
-        currentGraphMode = 'lap'; 
-        openModal();
-    }
-
-    function openModal() {
+        currentTarget = 'all';
+        currentMode = 'lap'; 
         document.getElementById('modal-overlay').style.display = 'flex';
-        renderActiveGraph();
+        drawChart();
     }
 
-    function setGraphMode(mode) {
-        currentGraphMode = mode;
-        renderActiveGraph();
-    }
+    function drawChart() {
+        // ボタンの状態更新
+        document.getElementById('btn-mode-split').className = `mode-btn ${currentMode === 'split' ? 'active' : ''}`;
+        document.getElementById('btn-mode-lap').className = `mode-btn ${currentMode === 'lap' ? 'active' : ''}`;
 
-    function renderActiveGraph() {
-        // スイッチの見た目を更新
-        document.getElementById('tgl-split').className = `toggle-btn ${currentGraphMode==='split'?'active':''}`;
-        document.getElementById('tgl-lap').className = `toggle-btn ${currentGraphMode==='lap'?'active':''}`;
-        
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
-        let datasets = [], labels = [], title = "";
+        let datasets = [], labels = [], titleText = "";
 
-        if (currentModalTarget !== 'all') {
-            const data = studentData[currentModalTarget].laps;
-            title = `No.${currentModalTarget} ${currentGraphMode==='split'?'スプリット':'ラップ'}`;
-            labels = data.map(d => `L${d.lap_no}`);
-            datasets.push({
-                label: '秒',
-                data: data.map(d => currentGraphMode==='split' ? d.split : d.lap),
-                borderColor: '#007AFF',
-                backgroundColor: 'rgba(0,122,255,0.1)',
-                fill: (currentGraphMode==='split'),
-                tension: 0.2
-            });
-        } else {
-            title = `全員比較 (${currentGraphMode==='split'?'スプリット':'ラップ'})`;
+        if (currentTarget === 'all') {
+            titleText = `全体比較 (${currentMode === 'split' ? 'スプリット' : 'ラップ'})`;
             let maxL = 0;
             for (let i = 1; i <= studentCount; i++) {
                 if (studentData[i].laps.length) {
                     datasets.push({
                         label: `No.${i}`,
-                        data: studentData[i].laps.map(d => currentGraphMode==='split' ? d.split : d.lap),
-                        borderColor: `hsl(${i * 137.5}, 70%, 50%)`,
-                        tension: 0.2
+                        data: studentData[i].laps.map(d => currentMode === 'split' ? d.split : d.lap),
+                        borderColor: `hsl(${i * 55}, 70%, 50%)`,
+                        tension: 0.1
                     });
                     maxL = Math.max(maxL, studentData[i].laps.length);
                 }
             }
             labels = Array.from({length: maxL}, (_, i) => `L${i+1}`);
+        } else {
+            const data = studentData[currentTarget].laps;
+            titleText = `No.${currentTarget} ${currentMode === 'split' ? 'スプリット' : 'ラップ'}`;
+            labels = data.map(d => `L${d.lap_no}`);
+            datasets.push({
+                label: '秒数',
+                data: data.map(d => currentMode === 'split' ? d.split : d.lap),
+                borderColor: '#007AFF',
+                backgroundColor: 'rgba(0,122,255,0.1)',
+                fill: (currentMode === 'split'),
+                tension: 0.1
+            });
         }
 
-        document.getElementById('graph-title').innerText = title;
+        document.getElementById('graph-title').innerText = titleText;
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: { labels, datasets },
@@ -259,12 +256,9 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: { 
-                    y: { 
-                        reverse: (currentGraphMode === 'lap'),
-                        beginAtZero: true
-                    } 
+                    y: { reverse: (currentMode === 'lap'), beginAtZero: (currentMode === 'split') } 
                 },
-                plugins: { legend: { display: (currentModalTarget === 'all'), labels: { boxWidth: 10 } } }
+                plugins: { legend: { display: (currentTarget === 'all'), labels: { boxWidth: 10 } } }
             }
         });
     }
@@ -272,8 +266,9 @@
     function closeModal() {
         document.getElementById('modal-overlay').style.display = 'none';
         if(chartInstance) chartInstance.destroy();
+        chartInstance = null;
     }
-    
+
     function downloadGraph() {
         const canvas = document.getElementById('chartCanvas');
         const link = document.createElement('a');
@@ -291,7 +286,6 @@
     }
 
     initStudents();
-    // 背景クリックで閉じる
     document.getElementById('modal-overlay').onclick = closeModal;
 </script>
 </body>
