@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Auto Save</title>
+    <title>Track Timer Pro - Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -63,6 +63,8 @@
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
         .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; }
         .selector-btn.active { color: var(--primary); background: #1a2530; border: 2px solid var(--primary); }
+
+        .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -110,8 +112,12 @@
             <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計</button>
             <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間</button>
         </div>
-        <div style="height: 280px;"><canvas id="chartCanvas"></canvas></div>
-        <button onclick="closeGraph()" style="width:100%; padding:15px; background:#444; margin-top:15px;">閉じる</button>
+        <div style="height: 250px;"><canvas id="chartCanvas"></canvas></div>
+        <div class="action-bar">
+            <button onclick="closeGraph()" style="background:#444; padding:12px;">閉じる</button>
+            <button onclick="downloadGraph()" style="background:var(--primary); padding:12px;">保存</button>
+            <button onclick="shareGraph()" style="background:var(--success); padding:12px;">共有</button>
+        </div>
     </div>
 </div>
 
@@ -121,31 +127,22 @@
     let currentTarget = 'all', currentMode = 'lap';
     let actionHistory = [];
 
-    // --- 保存・復元ロジック ---
     function saveData() {
-        const state = {
-            studentCount,
-            studentData,
-            elapsedTime,
-            actionHistory
-        };
-        localStorage.setItem('trackTimerState', JSON.stringify(state));
+        const state = { studentCount, studentData, elapsedTime, actionHistory };
+        localStorage.setItem('trackTimerState_v2', JSON.stringify(state));
     }
 
     function loadData() {
-        const saved = localStorage.getItem('trackTimerState');
+        const saved = localStorage.getItem('trackTimerState_v2');
         if (saved) {
             const state = JSON.parse(saved);
             studentCount = state.studentCount || 1;
             studentData = state.studentData || {};
             elapsedTime = state.elapsedTime || 0;
             actionHistory = state.actionHistory || [];
-            
-            // 時計表示を復元
-            let s = elapsedTime / 1000;
-            document.getElementById('main-clock').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
+            updateClockDisplay();
         }
-        initData(); // 足りないデータを補完
+        initData();
     }
 
     function initData() {
@@ -156,26 +153,24 @@
         }
     }
 
+    function updateClockDisplay() {
+        let s = elapsedTime / 1000;
+        document.getElementById('main-clock').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
+    }
+
     function renderGrid() {
         const container = document.getElementById('grid-container');
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
-        
         let cols = studentCount <= 1 ? 1 : (studentCount <= 4 ? 2 : 3);
         container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
 
         for (let i = 1; i <= studentCount; i++) {
             const data = studentData[i];
-            const displayName = data.name || `#${i}`;
             const cell = document.createElement('div');
             cell.className = 'student-cell' + (data.finished ? ' finished' : '') + (elapsedTime > 0 ? ' active-running' : '');
             cell.id = `cell-${i}`;
-            cell.innerHTML = `
-                <div class="lap-trigger">
-                    <div class="st-name">${displayName}</div>
-                    <div class="st-num">LAP ${data.laps.length}</div>
-                </div>
-                <div class="goal-trigger">GOAL</div>`;
+            cell.innerHTML = `<div class="lap-trigger"><div class="st-name">${data.name || `#${i}`}</div><div class="st-num">LAP ${data.laps.length}</div></div><div class="goal-trigger">GOAL</div>`;
             
             const handlePress = (e) => {
                 if (e.type === 'touchstart') e.preventDefault();
@@ -199,30 +194,18 @@
             cell.addEventListener('mouseup', handleRelease);
             container.appendChild(cell);
             
-            logArea.innerHTML += `
-                <div class="log-row" onclick="showIndividualGraph(${i})">
-                    <span style="color:var(--primary); font-weight:bold; width:80px; overflow:hidden;">${displayName}</span>
-                    <span id="log-data-${i}" style="flex:1">待機中</span>
-                    <span>📈</span>
-                </div>`;
+            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})"><span style="color:var(--primary); font-weight:bold; width:80px; overflow:hidden;">${data.name || `#${i}`}</span><span id="log-data-${i}" style="flex:1">待機中</span><span>📈</span></div>`;
             updateLogText(i);
         }
     }
 
-    function toggleTimer(forceStart = false) {
+    function toggleTimer() {
         const btn = document.getElementById('start-btn');
-        if (!isRunning || forceStart) {
-            if (forceStart && isRunning) return; 
+        if (!isRunning) {
             startTime = Date.now() - elapsedTime;
-            if (elapsedTime === 0) {
-                for(let i=1; i<=20; i++) studentData[i].lastTime = startTime;
-                document.querySelectorAll('.student-cell').forEach(el => el.classList.add('active-running'));
-            }
             timerInterval = setInterval(() => {
                 elapsedTime = Date.now() - startTime;
-                let s = elapsedTime / 1000;
-                document.getElementById('main-clock').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
-                saveData(); // 0.1秒ごとに保存するのは重いので、STOP時やラップ時に保存
+                updateClockDisplay();
             }, 50);
             isRunning = true;
             btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
@@ -236,11 +219,10 @@
 
     function recordLap(id) {
         if (!isRunning || studentData[id].finished) return;
-        const now = Date.now();
-        const split = (now - startTime) / 1000;
-        const lap = (now - studentData[id].lastTime) / 1000;
+        const split = (Date.now() - startTime) / 1000;
+        const lastLapTime = studentData[id].laps.length > 0 ? studentData[id].laps[studentData[id].laps.length-1].split : 0;
+        const lap = split - lastLapTime;
         studentData[id].laps.push({ split, lap });
-        studentData[id].lastTime = now;
         actionHistory.push(id);
         updateUI(id);
         saveData();
@@ -271,12 +253,8 @@
     function undoLastAction() {
         if (actionHistory.length === 0) return;
         const id = actionHistory.pop();
-        const s = studentData[id];
-        s.laps.pop();
-        s.finished = false;
-        // startTime が生きている（タイマー中）か、経過時間から逆算するか
-        const base = isRunning ? startTime : (Date.now() - elapsedTime);
-        s.lastTime = s.laps.length > 0 ? base + (s.laps[s.laps.length-1].split * 1000) : base;
+        studentData[id].laps.pop();
+        studentData[id].finished = false;
         renderGrid();
         saveData();
     }
@@ -287,36 +265,29 @@
         for (let i = 1; i <= studentCount; i++) {
             const div = document.createElement('div');
             div.className = 'settings-row';
-            div.innerHTML = `<span>#${i}</span><input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value; saveData();" placeholder="名前を入力...">`;
+            div.innerHTML = `<span>#${i}</span><input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value; saveData();" placeholder="名前...">`;
             list.appendChild(div);
         }
         document.getElementById('st-count-display').innerText = studentCount;
         document.getElementById('settings-modal').style.display = 'flex';
     }
 
-    function closeSettings() {
-        document.getElementById('settings-modal').style.display = 'none';
-        renderGrid();
-        saveData();
-    }
+    function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; renderGrid(); }
 
     function changeStudentCount(v) {
-        if (elapsedTime > 0) return alert("計測中は人数を変更できません");
+        if (elapsedTime > 0) return alert("計測中は変更できません");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
-        document.getElementById('st-count-display').innerText = studentCount;
         openSettings();
         saveData();
     }
 
     function resetTimer() {
-        if(elapsedTime > 0 && !confirm("計測データを消去しますか？（名前は残ります）")) return;
+        if(elapsedTime > 0 && !confirm("記録を消去しますか？")) return;
         clearInterval(timerInterval); isRunning = false; elapsedTime = 0; actionHistory = [];
-        document.getElementById('main-clock').innerText = '00:00.00';
         document.getElementById('start-btn').innerText = 'START';
         document.getElementById('start-btn').style.background = 'var(--success)';
         for(let i in studentData) { studentData[i].laps = []; studentData[i].finished = false; }
-        renderGrid();
-        saveData();
+        updateClockDisplay(); renderGrid(); saveData();
     }
 
     function showGlobalGraph() { currentTarget = 'all'; openGraph(); }
@@ -330,71 +301,42 @@
         document.getElementById('mode-lap').className = `selector-btn ${currentMode==='lap'?'active':''}`;
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
-        let datasets = [], labels = [];
-
+        let datasets = [], maxL = 0;
         if (currentTarget === 'all') {
             document.getElementById('graph-title').innerText = "全体比較";
-            let maxL = 0;
             for (let i = 1; i <= studentCount; i++) {
                 if (studentData[i].laps.length) {
-                    datasets.push({ 
-                        label: studentData[i].name || `#${i}`, 
-                        data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), 
-                        borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2, tension: 0.1, fill: false 
-                    });
+                    datasets.push({ label: studentData[i].name || `#${i}`, data: studentData[i].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: `hsl(${i * 137}, 70%, 50%)`, borderWidth: 2, tension: 0.1, fill: false });
                     maxL = Math.max(maxL, studentData[i].laps.length);
                 }
             }
-            labels = Array.from({length: maxL}, (_, i) => `L${i+1}`);
         } else {
-            const name = studentData[currentTarget].name || `#${currentTarget}`;
-            document.getElementById('graph-title').innerText = `${name} の解析`;
-            labels = studentData[currentTarget].laps.map((_, i) => `L${i+1}`);
-            datasets.push({ 
-                label: currentMode==='split'?'累計':'区間', 
-                data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), 
-                borderColor: '#007AFF', borderWidth: 4, tension: 0.1, fill: false 
-            });
+            document.getElementById('graph-title').innerText = (studentData[currentTarget].name || `#${currentTarget}`) + " 解析";
+            datasets.push({ label: currentMode==='split'?'累計':'区間', data: studentData[currentTarget].laps.map(d => currentMode==='split'?d.split:d.lap), borderColor: '#007AFF', borderWidth: 4, tension: 0.1, fill: false });
+            maxL = studentData[currentTarget].laps.length;
         }
-        chartInstance = new Chart(ctx, { 
-            type: 'line', 
-            data: { labels, datasets }, 
-            options: { 
-                responsive: true, maintainAspectRatio: false, 
-                scales: { 
-                    y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } },
-                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } }
-                },
-                plugins: { legend: { labels: { color: '#fff' } } }
-            } 
-        });
+        chartInstance = new Chart(ctx, { type: 'line', data: { labels: Array.from({length: maxL}, (_, i) => `L${i+1}`), datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { reverse: (currentMode==='lap'), grid: { color: '#333' }, ticks: { color: '#aaa' } }, x: { grid: { color: '#333' }, ticks: { color: '#aaa' } } }, plugins: { legend: { labels: { color: '#fff', boxWidth: 10 } } } } });
     }
 
     function navigatePlayer(dir) {
-        if (currentTarget === 'all') { currentTarget = 1; }
-        else {
-            currentTarget += dir;
-            if (currentTarget > studentCount) currentTarget = 1;
-            if (currentTarget < 1) currentTarget = studentCount;
-        }
+        if (currentTarget === 'all') currentTarget = 1;
+        else { currentTarget += dir; if (currentTarget > studentCount) currentTarget = 1; if (currentTarget < 1) currentTarget = studentCount; }
         updateGraph();
     }
 
+    async function shareGraph() {
+        const blob = await new Promise(resolve => document.getElementById('chartCanvas').toBlob(resolve));
+        const file = new File([blob], "result.png", { type: "image/png" });
+        if (navigator.share) navigator.share({ files: [file] });
+    }
+    function downloadGraph() { const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL(); a.download = `result.png`; a.click(); }
     function copyData() {
         let txt = "【計測結果】\n";
-        for (let i = 1; i <= studentCount; i++) {
-            const s = studentData[i];
-            if(s.laps.length) {
-                const name = s.name || `#${i}`;
-                txt += `${name}: ${s.laps.map(l=>l.lap.toFixed(2)).join(' / ')}\n`;
-            }
-        }
+        for (let i = 1; i <= studentCount; i++) { if(studentData[i].laps.length) txt += `${studentData[i].name || `#${i}`}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`; }
         navigator.clipboard.writeText(txt); alert("コピーしました");
     }
 
-    // アプリ起動
-    loadData();
-    renderGrid();
+    loadData(); renderGrid();
 </script>
 </body>
 </html>
