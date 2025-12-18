@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Fix</title>
+    <title>Track Timer Pro - Ultimate Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -129,11 +129,11 @@
 
     function saveData() {
         const state = { studentCount, studentData, elapsedTime, actionHistory };
-        localStorage.setItem('trackTimerState_v2', JSON.stringify(state));
+        localStorage.setItem('trackTimerState_final', JSON.stringify(state));
     }
 
     function loadData() {
-        const saved = localStorage.getItem('trackTimerState_v2');
+        const saved = localStorage.getItem('trackTimerState_final');
         if (saved) {
             const state = JSON.parse(saved);
             studentCount = state.studentCount || 1;
@@ -148,7 +148,7 @@
     function initData() {
         for (let i = 1; i <= 20; i++) {
             if (!studentData[i]) {
-                studentData[i] = { name: "", laps: [], lastTime: 0, finished: false };
+                studentData[i] = { name: "", laps: [], finished: false };
             }
         }
     }
@@ -199,29 +199,36 @@
         }
     }
 
-    function toggleTimer() {
+    function startTimerInternal() {
+        if (isRunning) return;
+        startTime = Date.now() - elapsedTime;
+        timerInterval = setInterval(() => {
+            elapsedTime = Date.now() - startTime;
+            updateClockDisplay();
+        }, 50);
+        isRunning = true;
         const btn = document.getElementById('start-btn');
-        if (!isRunning) {
-            startTime = Date.now() - elapsedTime;
-            timerInterval = setInterval(() => {
-                elapsedTime = Date.now() - startTime;
-                updateClockDisplay();
-            }, 50);
-            isRunning = true;
-            btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
-        } else {
-            clearInterval(timerInterval);
-            isRunning = false;
-            btn.innerText = 'START'; btn.style.background = 'var(--success)';
-            saveData();
-        }
+        btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
+    }
+
+    function stopTimerInternal() {
+        clearInterval(timerInterval);
+        isRunning = false;
+        const btn = document.getElementById('start-btn');
+        btn.innerText = 'START'; btn.style.background = 'var(--success)';
+        saveData();
+    }
+
+    function toggleTimer() {
+        if (!isRunning) startTimerInternal();
+        else stopTimerInternal();
     }
 
     function recordLap(id) {
         if (!isRunning || studentData[id].finished) return;
-        const split = (Date.now() - startTime) / 1000;
-        const lastLapTime = studentData[id].laps.length > 0 ? studentData[id].laps[studentData[id].laps.length-1].split : 0;
-        const lap = split - lastLapTime;
+        const split = elapsedTime / 1000;
+        const lastLapSplit = studentData[id].laps.length > 0 ? studentData[id].laps[studentData[id].laps.length-1].split : 0;
+        const lap = split - lastLapSplit;
         studentData[id].laps.push({ split, lap });
         actionHistory.push(id);
         updateUI(id);
@@ -232,8 +239,9 @@
         if (!isRunning || studentData[id].finished) return;
         recordLap(id);
         studentData[id].finished = true;
-        document.getElementById(`cell-${id}`).classList.add('finished');
-        if (Object.values(studentData).slice(0, studentCount).every(s => s.finished)) toggleTimer();
+        renderGrid();
+        const allFinished = Object.values(studentData).slice(0, studentCount).every(s => s.finished);
+        if (allFinished) stopTimerInternal();
         saveData();
     }
 
@@ -255,6 +263,12 @@
         const id = actionHistory.pop();
         studentData[id].laps.pop();
         studentData[id].finished = false;
+        
+        // 全員ゴールで停止していた場合も、1人分戻せば計測は続行すべき
+        if (!isRunning && elapsedTime > 0) {
+            startTimerInternal();
+        }
+        
         renderGrid();
         saveData();
     }
@@ -283,9 +297,8 @@
 
     function resetTimer() {
         if(elapsedTime > 0 && !confirm("記録を消去しますか？")) return;
-        clearInterval(timerInterval); isRunning = false; elapsedTime = 0; actionHistory = [];
-        document.getElementById('start-btn').innerText = 'START';
-        document.getElementById('start-btn').style.background = 'var(--success)';
+        stopTimerInternal();
+        elapsedTime = 0; actionHistory = [];
         for(let i in studentData) { studentData[i].laps = []; studentData[i].finished = false; }
         updateClockDisplay(); renderGrid(); saveData();
     }
