@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Ultimate Fix</title>
+    <title>Track Timer Pro - Dynamic Grid</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -23,42 +23,63 @@
         .btn-reset { background: var(--danger); color: white; flex: 1; }
         .btn-graph { background: white; border: 1px solid var(--purple); color: var(--purple); flex: 1.2; }
 
-        .config-bar { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; }
+        .config-bar { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+        .unit-input { width: 60px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
 
-        #grid-container { flex: 1; overflow-y: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 10px; background: #d1d1d6; }
-        .student-cell { background: white; border-radius: 14px; display: flex; height: 75px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); overflow: hidden; border: 2px solid transparent; }
-        .lap-trigger { flex: 1.5; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--primary); border-right: 1px solid #eee; }
-        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 14px; background: #ffe5e5; color: var(--danger); font-weight: bold; }
+        /* 【重要】人数に応じてサイズが変わるグリッド設定 */
+        #grid-container { 
+            flex: 1; overflow-y: auto; padding: 10px; 
+            display: grid; 
+            /* 1人の時は100%、増えると最小140pxまで縮小して並ぶ */
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); 
+            grid-auto-rows: min-content;
+            gap: 12px; 
+            background: #d1d1d6; 
+            align-content: start;
+        }
+
+        .student-cell { 
+            background: white; border-radius: 16px; display: flex; 
+            min-height: 80px; /* 少し高さを出して押しやすく */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.12); overflow: hidden; 
+            border: 3px solid transparent; transition: all 0.2s;
+        }
+        
+        /* 1〜2人の時はさらに高くして巨大なボタンにする */
+        .large-cell { min-height: 150px; font-size: 1.5rem; }
+
+        .lap-trigger { 
+            flex: 1.5; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            font-size: 24px; font-weight: 900; color: var(--primary); border-right: 1px solid #eee; 
+            background: #fff;
+        }
+        .lap-trigger:active { background: #f0f0f0; }
+
+        .goal-trigger { 
+            flex: 1; display: flex; align-items: center; justify-content: center; 
+            font-size: 14px; background: #ffe5e5; color: var(--danger); font-weight: bold; 
+        }
+        .goal-trigger:active { background: #ffd0d0; }
 
         #log-area { height: 140px; background: #fff; border-top: 2px solid #bbb; overflow-y: auto; }
         .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #eee; align-items: center; }
         .log-no { width: 40px; font-weight: bold; color: var(--primary); font-size: 16px; }
-        .log-data { flex: 1; font-size: 12px; font-family: monospace; white-space: pre-line; }
 
         .finished { filter: grayscale(1); opacity: 0.5; pointer-events: none; }
-        .active-running { border-color: var(--success) !important; }
+        .active-running { border-color: var(--success) !important; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(76, 217, 100, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(76, 217, 100, 0); } 100% { box-shadow: 0 0 0 0 rgba(76, 217, 100, 0); } }
 
-        /* 解析モーダル（ここを完全に書き換え） */
+        /* 解析モーダル */
         #modal-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.9); display: none; z-index: 1000;
             flex-direction: column; justify-content: center; align-items: center;
         }
-        .modal-body { 
-            background: white; width: 95%; max-width: 500px; border-radius: 20px; 
-            padding: 20px; position: relative;
-        }
-        .mode-selector { 
-            display: flex; gap: 8px; margin-bottom: 15px;
-        }
-        .selector-btn { 
-            flex: 1; padding: 12px; border-radius: 10px; font-weight: bold;
-            border: 2px solid #ddd; background: #f0f0f0; color: #666;
-        }
-        .selector-btn.active { 
-            border-color: var(--primary); background: #eef7ff; color: var(--primary);
-        }
-        canvas { max-width: 100%; height: 260px !important; }
+        .modal-body { background: white; width: 95%; max-width: 500px; border-radius: 20px; padding: 15px; }
+        .mode-selector { display: flex; gap: 8px; margin-bottom: 15px; }
+        .selector-btn { flex: 1; padding: 10px; border-radius: 10px; font-weight: bold; border: 2px solid #ddd; background: #f0f0f0; color: #666; }
+        .selector-btn.active { border-color: var(--primary); background: #eef7ff; color: var(--primary); }
+        .action-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -72,8 +93,10 @@
     </div>
     <div class="config-bar">
         <button onclick="changeStudentCount(-1)">➖</button>
-        <span id="student-count-lbl" style="font-weight:bold; width: 60px; text-align:center;">1 人</span>
+        <span id="student-count-lbl" style="font-weight:bold; width:50px; text-align:center;">1 人</span>
         <button onclick="changeStudentCount(1)">➕</button>
+        <span style="margin-left:5px;">単位:</span>
+        <input type="text" id="unit-label" class="unit-input" value="Lap" placeholder="例:m">
         <button style="border:1px solid #999; background:white;" onclick="copyData()">コピー</button>
     </div>
 </header>
@@ -84,17 +107,15 @@
 <div id="modal-overlay">
     <div class="modal-body" onclick="event.stopPropagation()">
         <div id="graph-title" style="text-align:center; font-weight:bold; margin-bottom:10px;">解析</div>
-        
         <div class="mode-selector">
             <button id="mode-split" class="selector-btn" onclick="switchMode('split')">スプリット</button>
             <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">ラップ</button>
         </div>
-
-        <canvas id="chartCanvas"></canvas>
-        
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button style="flex:1; padding:12px; background:#f0f0f0; color:#333;" onclick="closeModal()">閉じる</button>
-            <button style="flex:1; padding:12px; background:var(--primary); color:white;" onclick="downloadGraph()">画像保存</button>
+        <div style="height: 250px;"><canvas id="chartCanvas"></canvas></div>
+        <div class="action-bar">
+            <button style="background:#666; color:white;" onclick="closeModal()">閉じる</button>
+            <button style="background:var(--primary); color:white;" onclick="downloadGraph()">画像保存</button>
+            <button style="background:var(--success); color:white;" onclick="shareGraph()">共有</button>
         </div>
     </div>
 </div>
@@ -140,17 +161,23 @@
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
         studentData = {}; 
+        
+        // 人数に応じたクラス判定
+        const sizeClass = studentCount <= 2 ? 'large-cell' : '';
+
         for (let i = 1; i <= studentCount; i++) {
             studentData[i] = { laps: [], lastTime: 0, finished: false };
-            container.innerHTML += `<div class="student-cell" id="cell-${i}">
-                <div class="lap-trigger" onclick="recordLap(${i})">No.${i}</div>
-                <div class="goal-trigger" onclick="recordGoal(${i})">GOAL</div>
-            </div>`;
-            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})">
-                <div class="log-no">#${i}</div>
-                <div id="log-data-${i}" class="log-data" style="flex:1">待機中...</div>
-                <div style="color:var(--primary); font-size:12px;">📈 グラフ</div>
-            </div>`;
+            container.innerHTML += `
+                <div class="student-cell ${sizeClass}" id="cell-${i}">
+                    <div class="lap-trigger" onclick="recordLap(${i})"><span>No.</span>${i}</div>
+                    <div class="goal-trigger" onclick="recordGoal(${i})">GOAL</div>
+                </div>`;
+            logArea.innerHTML += `
+                <div class="log-row" onclick="showIndividualGraph(${i})">
+                    <div class="log-no">#${i}</div>
+                    <div id="log-data-${i}" style="flex:1; font-size:12px; font-family:monospace;">待機中...</div>
+                    <div style="color:var(--primary); font-size:12px;">📊</div>
+                </div>`;
         }
     }
 
@@ -159,12 +186,14 @@
         const now = Date.now();
         const split = (now - startTime) / 1000;
         const lap = (now - (studentData[id].lastTime || startTime)) / 1000;
+        const unit = document.getElementById('unit-label').value || 'Lap';
         studentData[id].laps.push({ lap_no: studentData[id].laps.length + 1, split, lap });
         studentData[id].lastTime = now;
-        document.getElementById(`log-data-${id}`).innerText = `${isGoal?'【GOAL】':'L'+studentData[id].laps.length}: ${lap.toFixed(2)}s / Split: ${split.toFixed(2)}s`;
+        document.getElementById(`log-data-${id}`).innerText = `${isGoal?'【GOAL】':unit+studentData[id].laps.length}: ${lap.toFixed(2)}s / Split: ${split.toFixed(2)}s`;
         if (isGoal) {
             studentData[id].finished = true;
-            document.getElementById(`cell-${id}`).className = 'student-cell finished';
+            document.getElementById(`cell-${i=id}`).classList.add('finished');
+            document.getElementById(`cell-${i=id}`).classList.remove('active-running');
             checkAutoStop();
         }
     }
@@ -194,16 +223,11 @@
         initStudents();
     }
 
-    // --- グラフ機能 ---
-    function switchMode(m) {
-        currentMode = m;
-        updateGraph();
-    }
+    function switchMode(m) { currentMode = m; updateGraph(); }
 
     function showIndividualGraph(id) {
-        if (!studentData[id].laps.length) return alert("データがありません");
-        currentTarget = id;
-        currentMode = 'split';
+        if (!studentData[id].laps.length) return alert("データなし");
+        currentTarget = id; currentMode = 'split';
         document.getElementById('modal-overlay').style.display = 'flex';
         updateGraph();
     }
@@ -211,21 +235,19 @@
     function showGlobalGraph() {
         let hasData = false;
         for(let i=1; i<=studentCount; i++) if(studentData[i].laps.length) hasData = true;
-        if(!hasData) return alert("データがありません");
-        currentTarget = 'all';
-        currentMode = 'lap';
+        if(!hasData) return alert("データなし");
+        currentTarget = 'all'; currentMode = 'lap';
         document.getElementById('modal-overlay').style.display = 'flex';
         updateGraph();
     }
 
     function updateGraph() {
-        // ボタンの色の更新
         document.getElementById('mode-split').className = `selector-btn ${currentMode==='split'?'active':''}`;
         document.getElementById('mode-lap').className = `selector-btn ${currentMode==='lap'?'active':''}`;
-
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         let datasets = [], labels = [];
+        const unit = document.getElementById('unit-label').value || 'Lap';
 
         if (currentTarget === 'all') {
             document.getElementById('graph-title').innerText = `全体比較 (${currentMode==='split'?'スプリット':'ラップ'})`;
@@ -241,15 +263,15 @@
                     maxL = Math.max(maxL, studentData[i].laps.length);
                 }
             }
-            labels = Array.from({length: maxL}, (_, i) => `L${i+1}`);
+            labels = Array.from({length: maxL}, (_, i) => `${unit}${i+1}`);
         } else {
             document.getElementById('graph-title').innerText = `No.${currentTarget} ${currentMode==='split'?'スプリット':'ラップ'}`;
             const data = studentData[currentTarget].laps;
-            labels = data.map(d => `L${d.lap_no}`);
+            labels = data.map(d => `${unit}${d.lap_no}`);
             datasets.push({
                 label: '秒',
                 data: data.map(d => currentMode==='split'?d.split:d.lap),
-                borderColor: var(--primary),
+                borderColor: '#007AFF',
                 backgroundColor: 'rgba(0,122,255,0.1)',
                 fill: (currentMode==='split'),
                 tension: 0.1
@@ -262,29 +284,37 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: { y: { reverse: (currentMode==='lap'), beginAtZero: true } },
-                plugins: { legend: { display: (currentTarget==='all') } }
+                scales: { y: { reverse: (currentMode==='lap'), beginAtZero: true } }
             }
         });
     }
 
-    function closeModal() {
-        document.getElementById('modal-overlay').style.display = 'none';
-        if(chartInstance) chartInstance.destroy();
-        chartInstance = null;
+    async function shareGraph() {
+        const canvas = document.getElementById('chartCanvas');
+        canvas.toBlob(async (blob) => {
+            const file = new File([blob], "graph.png", { type: "image/png" });
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title: '解析結果', files: [file] });
+                } catch (e) {}
+            } else { alert("画像保存をご利用ください"); }
+        });
     }
+
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; if(chartInstance) chartInstance.destroy(); }
     
     function downloadGraph() {
         const link = document.createElement('a');
-        link.download = `result_${Date.now()}.png`;
+        link.download = `graph_${Date.now()}.png`;
         link.href = document.getElementById('chartCanvas').toDataURL();
         link.click();
     }
 
     function copyData() {
         let text = "【計測結果】\n";
+        const unit = document.getElementById('unit-label').value || 'Lap';
         for (let i = 1; i <= studentCount; i++) {
-            if(studentData[i].laps.length) text += `\nNo.${i}: ` + studentData[i].laps.map(l => `[L${l.lap_no}]${l.lap.toFixed(2)}s`).join(' ');
+            if(studentData[i].laps.length) text += `\nNo.${i}: ` + studentData[i].laps.map(l => `[${unit}${l.lap_no}]${l.lap.toFixed(2)}s`).join(' ');
         }
         navigator.clipboard.writeText(text).then(() => alert("コピーしました"));
     }
