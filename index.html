@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro</title>
+    <title>Track Timer Pro - Auto Save</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -51,11 +51,9 @@
         #log-area { height: 100px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
         .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; }
         
-        /* Modals */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: #1c1c1e; width: 95%; max-width: 500px; border-radius: 24px; padding: 20px; border: 1px solid #333; max-height: 80vh; overflow-y: auto; }
         
-        /* Settings List */
         .settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; background: #2c2c2e; padding: 8px; border-radius: 10px; }
         .settings-row input { background: #1c1c1e; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 8px; flex: 1; font-size: 1rem; }
 
@@ -96,7 +94,6 @@
                 <button onclick="changeStudentCount(1)" style="padding:10px 20px; background:var(--primary);">+</button>
             </div>
         </div>
-        <div style="margin-bottom:10px; color:#888; font-size:0.8rem;">名前入力（空欄なら番号）</div>
         <div id="name-inputs-list"></div>
         <button onclick="closeSettings()" style="width:100%; padding:15px; background:var(--success); margin-top:20px; font-size:1.1rem;">完了</button>
     </div>
@@ -124,7 +121,33 @@
     let currentTarget = 'all', currentMode = 'lap';
     let actionHistory = [];
 
-    // 初期化
+    // --- 保存・復元ロジック ---
+    function saveData() {
+        const state = {
+            studentCount,
+            studentData,
+            elapsedTime,
+            actionHistory
+        };
+        localStorage.setItem('trackTimerState', JSON.stringify(state));
+    }
+
+    function loadData() {
+        const saved = localStorage.getItem('trackTimerState');
+        if (saved) {
+            const state = JSON.parse(saved);
+            studentCount = state.studentCount || 1;
+            studentData = state.studentData || {};
+            elapsedTime = state.elapsedTime || 0;
+            actionHistory = state.actionHistory || [];
+            
+            // 時計表示を復元
+            let s = elapsedTime / 1000;
+            document.getElementById('main-clock').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
+        }
+        initData(); // 足りないデータを補完
+    }
+
     function initData() {
         for (let i = 1; i <= 20; i++) {
             if (!studentData[i]) {
@@ -144,7 +167,6 @@
         for (let i = 1; i <= studentCount; i++) {
             const data = studentData[i];
             const displayName = data.name || `#${i}`;
-            
             const cell = document.createElement('div');
             cell.className = 'student-cell' + (data.finished ? ' finished' : '') + (elapsedTime > 0 ? ' active-running' : '');
             cell.id = `cell-${i}`;
@@ -175,7 +197,6 @@
             cell.addEventListener('touchend', handleRelease, {passive: false});
             cell.addEventListener('mousedown', handlePress);
             cell.addEventListener('mouseup', handleRelease);
-
             container.appendChild(cell);
             
             logArea.innerHTML += `
@@ -188,12 +209,11 @@
         }
     }
 
-    // タイマー処理
     function toggleTimer(forceStart = false) {
         const btn = document.getElementById('start-btn');
         if (!isRunning || forceStart) {
             if (forceStart && isRunning) return; 
-            startTime = elapsedTime === 0 ? Date.now() : Date.now() - elapsedTime;
+            startTime = Date.now() - elapsedTime;
             if (elapsedTime === 0) {
                 for(let i=1; i<=20; i++) studentData[i].lastTime = startTime;
                 document.querySelectorAll('.student-cell').forEach(el => el.classList.add('active-running'));
@@ -202,6 +222,7 @@
                 elapsedTime = Date.now() - startTime;
                 let s = elapsedTime / 1000;
                 document.getElementById('main-clock').innerText = `${String(Math.floor(s/60)).padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`;
+                saveData(); // 0.1秒ごとに保存するのは重いので、STOP時やラップ時に保存
             }, 50);
             isRunning = true;
             btn.innerText = 'STOP'; btn.style.background = 'var(--warning)';
@@ -209,6 +230,7 @@
             clearInterval(timerInterval);
             isRunning = false;
             btn.innerText = 'START'; btn.style.background = 'var(--success)';
+            saveData();
         }
     }
 
@@ -221,6 +243,7 @@
         studentData[id].lastTime = now;
         actionHistory.push(id);
         updateUI(id);
+        saveData();
     }
 
     function recordGoal(id) {
@@ -229,6 +252,7 @@
         studentData[id].finished = true;
         document.getElementById(`cell-${id}`).classList.add('finished');
         if (Object.values(studentData).slice(0, studentCount).every(s => s.finished)) toggleTimer();
+        saveData();
     }
 
     function updateUI(id) {
@@ -250,19 +274,20 @@
         const s = studentData[id];
         s.laps.pop();
         s.finished = false;
-        s.lastTime = s.laps.length > 0 ? startTime + (s.laps[s.laps.length-1].split * 1000) : startTime;
+        // startTime が生きている（タイマー中）か、経過時間から逆算するか
+        const base = isRunning ? startTime : (Date.now() - elapsedTime);
+        s.lastTime = s.laps.length > 0 ? base + (s.laps[s.laps.length-1].split * 1000) : base;
         renderGrid();
-        if (!isRunning && elapsedTime > 0) toggleTimer(true);
+        saveData();
     }
 
-    // 設定関連
     function openSettings() {
         const list = document.getElementById('name-inputs-list');
         list.innerHTML = '';
         for (let i = 1; i <= studentCount; i++) {
             const div = document.createElement('div');
             div.className = 'settings-row';
-            div.innerHTML = `<span>#${i}</span><input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value" placeholder="名前を入力...">`;
+            div.innerHTML = `<span>#${i}</span><input type="text" value="${studentData[i].name}" oninput="studentData[${i}].name=this.value; saveData();" placeholder="名前を入力...">`;
             list.appendChild(div);
         }
         document.getElementById('st-count-display').innerText = studentCount;
@@ -272,6 +297,7 @@
     function closeSettings() {
         document.getElementById('settings-modal').style.display = 'none';
         renderGrid();
+        saveData();
     }
 
     function changeStudentCount(v) {
@@ -279,19 +305,20 @@
         studentCount = Math.max(1, Math.min(20, studentCount + v));
         document.getElementById('st-count-display').innerText = studentCount;
         openSettings();
+        saveData();
     }
 
     function resetTimer() {
-        if(elapsedTime > 0 && !confirm("データを消去しますか？")) return;
+        if(elapsedTime > 0 && !confirm("計測データを消去しますか？（名前は残ります）")) return;
         clearInterval(timerInterval); isRunning = false; elapsedTime = 0; actionHistory = [];
         document.getElementById('main-clock').innerText = '00:00.00';
         document.getElementById('start-btn').innerText = 'START';
         document.getElementById('start-btn').style.background = 'var(--success)';
         for(let i in studentData) { studentData[i].laps = []; studentData[i].finished = false; }
         renderGrid();
+        saveData();
     }
 
-    // 分析・グラフ関連
     function showGlobalGraph() { currentTarget = 'all'; openGraph(); }
     function showIndividualGraph(id) { if(studentData[id].laps.length) { currentTarget = id; openGraph(); } }
     function openGraph() { document.getElementById('graph-modal').style.display = 'flex'; updateGraph(); }
@@ -365,7 +392,8 @@
         navigator.clipboard.writeText(txt); alert("コピーしました");
     }
 
-    initData();
+    // アプリ起動
+    loadData();
     renderGrid();
 </script>
 </body>
