@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Personal Split Graph</title>
+    <title>Track Timer Pro - Logic Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -27,24 +27,21 @@
         .config-bar { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 14px; }
 
         #grid-container { flex: 1; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; background: #d1d1d6; }
-        .student-cell { background: white; border-radius: 12px; display: flex; height: 70px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
+        .student-cell { background: white; border-radius: 12px; display: flex; height: 70px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; border: 2px solid transparent; }
         .lap-trigger { flex: 1.5; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: var(--primary); border-right: 1px solid #eee; }
         .lap-trigger span { font-size: 10px; font-weight: normal; margin-bottom: -4px; }
         .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 14px; background: #ffe5e5; color: var(--danger); font-weight: bold; }
 
-        #log-area { height: 130px; background: #fff; overflow-y: auto; border-top: 2px solid #bbb; }
-        .log-row { display: flex; padding: 8px 12px; border-bottom: 1px solid #eee; align-items: center; cursor: pointer; transition: background 0.2s; }
-        .log-row:active { background: #f0f0f0; }
+        #log-area { height: 130px; background: #fff; border-top: 2px solid #bbb; overflow-y: auto; }
+        .log-row { display: flex; padding: 8px 12px; border-bottom: 1px solid #eee; align-items: center; cursor: pointer; }
         .log-no { width: 35px; font-weight: bold; color: var(--primary); font-size: 14px; }
-        .log-data { flex: 1; font-size: 11px; font-family: monospace; line-height: 1.2; }
-        .log-hint { font-size: 9px; color: #999; margin-left: 5px; }
+        .log-data { flex: 1; font-size: 11px; font-family: monospace; white-space: pre-line; }
 
-        .finished { filter: grayscale(1); opacity: 0.5; pointer-events: none; }
-        .active-running { border: 2px solid var(--success); }
+        .finished { filter: grayscale(1); opacity: 0.5; pointer-events: none; background: #eee !important; }
+        .active-running { border-color: var(--success) !important; box-shadow: 0 0 8px rgba(76, 217, 100, 0.4); }
 
         #modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); display:none; flex-direction:column; justify-content:center; padding: 10px; z-index: 1000; }
-        .modal-content { background: white; width: 100%; border-radius: 15px; padding: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
-        .modal-title { font-weight: bold; margin-bottom: 10px; text-align: center; color: #333; }
+        .modal-content { background: white; width: 100%; border-radius: 15px; padding: 15px; }
     </style>
 </head>
 <body>
@@ -65,17 +62,13 @@
 </header>
 
 <div id="grid-container"></div>
-
 <div id="log-area"></div>
 
 <div id="modal-overlay" onclick="closeModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
-        <div id="graph-title" class="modal-title">グラフ</div>
+        <div id="graph-title" style="text-align:center; font-weight:bold; margin-bottom:10px;"></div>
         <canvas id="chartCanvas"></canvas>
-        <div style="display:flex; gap:10px; margin-top:15px;">
-            <button style="flex:1; padding:12px; background:#666; color:white; border-radius:8px;" onclick="closeModal()">閉じる</button>
-            <button id="save-btn" style="flex:1; padding:12px; background:var(--primary); color:white; border-radius:8px;" onclick="downloadGraph()">画像保存</button>
-        </div>
+        <button style="width:100%; margin-top:15px; padding:12px; background:var(--primary); color:white; border-radius:8px;" onclick="closeModal()">閉じる</button>
     </div>
 </div>
 
@@ -99,8 +92,10 @@
         if (!isRunning) {
             if (elapsedTime === 0) {
                 startTime = Date.now();
+                // 計測開始時の対象を明確に限定
                 for(let i=1; i<=studentCount; i++) {
                     studentData[i].lastTime = startTime;
+                    studentData[i].finished = false;
                     document.getElementById(`cell-${i}`).classList.add('active-running');
                 }
             } else {
@@ -120,54 +115,79 @@
         const container = document.getElementById('grid-container');
         const logArea = document.getElementById('log-area');
         container.innerHTML = ''; logArea.innerHTML = '';
-        studentData = {};
+        
+        // データを初期化するが、既存のデータがある場合はクリア
+        studentData = {}; 
+
         for (let i = 1; i <= studentCount; i++) {
             studentData[i] = { laps: [], lastTime: 0, finished: false };
-            container.innerHTML += `<div class="student-cell" id="cell-${i}">
-                <div class="lap-trigger" onclick="recordLap(${i})"><span>No.</span>${i}</div>
-                <div class="goal-trigger" onclick="recordGoal(${i})">GOAL</div>
-            </div>`;
-            logArea.innerHTML += `<div class="log-row" onclick="showIndividualGraph(${i})">
-                <div class="log-no">#${i}</div>
-                <div id="log-data-${i}" class="log-data">待機中...</div>
-                <div class="log-hint">📈 グラフ</div>
-            </div>`;
+            container.innerHTML += `
+                <div class="student-cell" id="cell-${i}">
+                    <div class="lap-trigger" onclick="recordLap(${i})"><span>No.</span>${i}</div>
+                    <div class="goal-trigger" onclick="recordGoal(${i})">GOAL</div>
+                </div>`;
+            logArea.innerHTML += `
+                <div class="log-row" onclick="showIndividualGraph(${i})">
+                    <div class="log-no">#${i}</div>
+                    <div id="log-data-${i}" class="log-data">待機中...</div>
+                    <div style="font-size:9px; color:#999;">📈</div>
+                </div>`;
         }
     }
 
     function recordLap(id, isGoal = false) {
         if (!isRunning || studentData[id].finished) return;
+        
         const now = Date.now();
         const split = (now - startTime) / 1000;
         const lap = (now - studentData[id].lastTime) / 1000;
+        
         studentData[id].laps.push({ lap_no: studentData[id].laps.length + 1, split, lap });
         studentData[id].lastTime = now;
-        document.getElementById(`log-data-${id}`).innerText = `${isGoal?'【GOAL】':'L'+studentData[id].laps.length}: ${lap.toFixed(2)}s\nSplit: ${split.toFixed(2)}s`;
+        
+        document.getElementById(`log-data-${id}`).innerText = 
+            `${isGoal?'【GOAL】':'L'+studentData[id].laps.length}: ${lap.toFixed(2)}s / Split: ${split.toFixed(2)}s`;
+        
         if (isGoal) {
             studentData[id].finished = true;
-            document.getElementById(`cell-${id}`).classList.add('finished');
             document.getElementById(`cell-${id}`).classList.remove('active-running');
+            document.getElementById(`cell-${id}`).classList.add('finished');
             checkAutoStop();
         }
     }
 
     function recordGoal(id) { recordLap(id, true); }
 
+    // 【修正の肝】現在有効な studentCount の人数だけをチェックする
     function checkAutoStop() {
-        let finishedCount = 0;
-        for (let i = 1; i <= studentCount; i++) if (studentData[i].finished) finishedCount++;
-        if (finishedCount === studentCount && isRunning) toggleTimer();
+        let activeFinishedCount = 0;
+        for (let i = 1; i <= studentCount; i++) {
+            if (studentData[i] && studentData[i].finished) {
+                activeFinishedCount++;
+            }
+        }
+        
+        // 現在の計測人数全員がゴールしたか判定
+        if (activeFinishedCount >= studentCount) {
+            if (isRunning) {
+                toggleTimer();
+                setTimeout(() => alert("全員ゴール！タイマーを停止しました。"), 100);
+            }
+        }
     }
 
     function changeStudentCount(v) {
-        if(isRunning || elapsedTime > 0) return alert("リセットしてから変更してください");
+        if(isRunning || elapsedTime > 0) {
+            alert("計測中またはデータがある状態では人数変更できません。RESETを押してください。");
+            return;
+        }
         studentCount = Math.max(1, Math.min(20, studentCount + v));
         document.getElementById('student-count-lbl').innerText = studentCount;
         initStudents();
     }
 
     function resetTimer() {
-        if(elapsedTime > 0 && !confirm("リセットしますか？")) return;
+        if(elapsedTime > 0 && !confirm("データをリセットしますか？")) return;
         clearInterval(timerInterval);
         isRunning = false; elapsedTime = 0;
         document.getElementById('main-clock').innerText = '00:00.00';
@@ -176,31 +196,18 @@
         initStudents();
     }
 
-    // --- グラフ機能 ---
+    // --- グラフ表示（スプリット） ---
     function showIndividualGraph(id) {
         const data = studentData[id].laps;
         if (!data.length) return alert("データがありません");
-        
-        document.getElementById('graph-title').innerText = `No.${id} スプリット推移 (累計時間)`;
+        document.getElementById('graph-title').innerText = `No.${id} スプリット推移`;
         document.getElementById('modal-overlay').style.display = 'flex';
-        
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.map(d => `Lap ${d.lap_no}`),
-                datasets: [{
-                    label: 'スプリットタイム (秒)',
-                    data: data.map(d => d.split),
-                    borderColor: '#007AFF',
-                    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-                    fill: true,
-                    tension: 0.1,
-                    pointRadius: 5
-                }]
-            },
-            options: {
-                scales: { y: { beginAtZero: true, title: { display: true, text: '経過時間 (秒)' } } }
+                labels: data.map(d => `L${d.lap_no}`),
+                datasets: [{ label: '累計秒数', data: data.map(d => d.split), borderColor: '#007AFF', fill: false }]
             }
         });
     }
@@ -212,36 +219,30 @@
                 datasets.push({
                     label: `No.${i}`,
                     data: studentData[i].laps.map(d => d.lap),
-                    borderColor: `hsl(${i * 45}, 70%, 50%)`,
-                    tension: 0.2
+                    borderColor: `hsl(${i * 50}, 70%, 50%)`,
+                    tension: 0.1
                 });
                 maxLaps = Math.max(maxLaps, studentData[i].laps.length);
             }
         }
-        if (!datasets.length) return alert("データがありません");
-        document.getElementById('graph-title').innerText = "全体比較 (区間ラップ推移)";
+        if (!datasets.length) return alert("データなし");
+        document.getElementById('graph-title').innerText = "全体比較 (ラップ)";
         document.getElementById('modal-overlay').style.display = 'flex';
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: { labels: Array.from({length: maxLaps}, (_, i) => i + 1), datasets },
-            options: { scales: { y: { reverse: true, title: { display: true, text: 'ラップ秒数 (速いほど上)' } } } }
+            options: { scales: { y: { reverse: true } } }
         });
     }
 
     function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; if(chartInstance) chartInstance.destroy(); }
-    function downloadGraph() {
-        const link = document.createElement('a');
-        link.download = 'training_result.png';
-        link.href = document.getElementById('chartCanvas').toDataURL();
-        link.click();
-    }
     function copyData() {
         let text = "【計測結果】\n";
         for (let i = 1; i <= studentCount; i++) {
             if(studentData[i].laps.length) text += `\nNo.${i}: ` + studentData[i].laps.map(l => `[L${l.lap_no}]${l.lap.toFixed(2)}s`).join(' ');
         }
-        navigator.clipboard.writeText(text).then(() => alert("結果をコピーしました"));
+        navigator.clipboard.writeText(text).then(() => alert("コピーしました"));
     }
 
     initStudents();
