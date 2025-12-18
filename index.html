@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Track Timer Pro - Full Functional</title>
+    <title>Track Timer Pro - Player Navigator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -17,7 +17,6 @@
         #main-clock { font-family: 'Courier New', monospace; font-size: 3rem; font-weight: bold; text-align: center; color: #fff; text-shadow: 0 0 10px var(--primary); }
         .controls { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
         
-        /* 共通ボタン設定 */
         button { 
             border: none; border-radius: 12px; font-weight: bold; cursor: pointer; 
             transition: all 0.05s ease; position: relative; top: 0;
@@ -30,7 +29,7 @@
         .btn-reset { background: var(--danger); color: white; flex: 1; padding: 12px; }
         .btn-graph { background: #2c2c2e; border: 1px solid var(--purple); color: var(--purple); flex: 1.2; padding: 12px; }
 
-        /* 選手用タイル */
+        /* 選手タイル */
         #grid-container { flex: 1; padding: 10px; display: grid; gap: 12px; align-content: stretch; }
         .student-cell { 
             background: #2c2c2e; border-radius: 18px; display: flex; 
@@ -39,38 +38,30 @@
         }
         .student-cell:active { top: 4px; box-shadow: 0 2px 0 #111; }
 
-        .lap-trigger { 
-            flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444;
-            background: #2c2c2e;
-        }
+        .lap-trigger { flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 900; color: var(--primary); border-right: 1px solid #444; background: #2c2c2e; }
         .student-cell:active .lap-trigger { background: #333; box-shadow: inset 10px 10px 20px rgba(0,0,0,0.4); }
-
-        .goal-trigger { 
-            flex: 1; display: flex; align-items: center; justify-content: center; 
-            font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; 
-        }
+        .goal-trigger { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: #3d1c1c; color: var(--danger); font-weight: bold; }
         .student-cell:active .goal-trigger { background: var(--danger); color: white; box-shadow: inset -10px 10px 20px rgba(0,0,0,0.4); }
 
-        /* ログエリア */
+        /* ログ */
         #log-area { height: 90px; background: #1c1c1e; border-top: 1px solid #333; overflow-y: auto; }
         .log-row { display: flex; padding: 10px 15px; border-bottom: 1px solid #2c2c2e; color: #ccc; font-size: 13px; align-items: center; cursor: pointer; }
 
-        /* モーダル（解析画面） */
+        /* モーダル */
         #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 1000; justify-content: center; align-items: center; }
         .modal-body { background: #1c1c1e; width: 95%; max-width: 600px; border-radius: 24px; padding: 20px; border: 1px solid #333; }
         
+        /* 選手ナビゲーターUI */
+        .graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+        .nav-btn { background: #333; color: var(--primary); padding: 8px 15px; border-radius: 8px; font-size: 1.2rem; box-shadow: 0 3px 0 #000; }
+        .nav-btn:active { top: 2px; box-shadow: 0 1px 0 #000; }
+        #graph-title { color: #fff; margin: 0; font-size: 1.2rem; }
+
         .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
-        .selector-btn { 
-            flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; 
-            border-bottom: 4px solid #111; font-size: 14px;
-        }
+        .selector-btn { flex: 1; padding: 12px; border-radius: 10px; background: #2c2c2e; color: #888; border-bottom: 4px solid #111; }
         .selector-btn.active { border-color: var(--primary); color: var(--primary); background: #1a2530; }
 
         .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
-        .action-bar button { padding: 12px; font-size: 14px; }
-
-        /* 状態クラス */
         .config-bar { display: flex; align-items: center; justify-content: center; gap: 10px; color: #aaa; font-size: 14px; }
         .unit-input { width: 70px; background: #333; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 5px; text-align: center; }
         .active-running { border-color: var(--success) !important; }
@@ -101,11 +92,15 @@
 
 <div id="modal-overlay" onclick="closeModal()">
     <div class="modal-body" onclick="event.stopPropagation()">
-        <h3 id="graph-title" style="text-align:center; color:#fff; margin-top:0;">解析</h3>
+        <div class="graph-header" id="nav-header">
+            <button class="nav-btn" onclick="navigatePlayer(-1)">◀</button>
+            <h3 id="graph-title">解析</h3>
+            <button class="nav-btn" onclick="navigatePlayer(1)">▶</button>
+        </div>
         
         <div class="mode-selector">
-            <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計(SPLIT)</button>
-            <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間(LAP)</button>
+            <button id="mode-split" class="selector-btn" onclick="switchMode('split')">累計</button>
+            <button id="mode-lap" class="selector-btn" onclick="switchMode('lap')">区間</button>
         </div>
 
         <div style="height: 300px;"><canvas id="chartCanvas"></canvas></div>
@@ -182,9 +177,7 @@
         studentData[id].lastTime = now;
         const unit = document.getElementById('unit-label').value;
         document.getElementById(`log-data-${id}`).innerText = `${isGoal?'GOAL':unit+studentData[id].laps.length}: ${lap.toFixed(2)}s`;
-        
         if (navigator.vibrate) navigator.vibrate(25);
-
         if (isGoal) {
             studentData[id].finished = true;
             document.getElementById(`cell-${id}`).classList.add('finished');
@@ -194,14 +187,12 @@
     }
 
     function recordGoal(id) { recordLap(id, true); }
-
     function changeStudentCount(v) {
         if(elapsedTime > 0) return alert("RESETしてください");
         studentCount = Math.max(1, Math.min(20, studentCount + v));
         document.getElementById('student-count-lbl').innerText = studentCount + " 人";
         initStudents();
     }
-
     function resetTimer() {
         if(elapsedTime > 0 && !confirm("データを消去しますか？")) return;
         clearInterval(timerInterval); isRunning = false; elapsedTime = 0;
@@ -211,7 +202,7 @@
         initStudents();
     }
 
-    // --- グラフ関連機能 ---
+    /* グラフ機能 */
     function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
     function switchMode(m) { currentMode = m; updateGraph(); }
 
@@ -219,27 +210,48 @@
         if (!studentData[id].laps.length) return;
         currentTarget = id;
         document.getElementById('modal-overlay').style.display = 'flex';
+        document.getElementById('nav-header').style.display = 'flex';
         updateGraph();
     }
 
     function showGlobalGraph() {
         currentTarget = 'all';
         document.getElementById('modal-overlay').style.display = 'flex';
+        document.getElementById('nav-header').style.display = 'none'; // 全体比較時はナビ不要
         updateGraph();
     }
 
+    // 次/前の選手へ切り替え
+    function navigatePlayer(dir) {
+        let nextId = currentTarget + dir;
+        if (nextId > studentCount) nextId = 1;
+        if (nextId < 1) nextId = studentCount;
+        
+        // データがある選手が見つかるまでスキップ
+        let count = 0;
+        while (!studentData[nextId].laps.length && count < studentCount) {
+            nextId += dir;
+            if (nextId > studentCount) nextId = 1;
+            if (nextId < 1) nextId = studentCount;
+            count++;
+        }
+        
+        if (studentData[nextId].laps.length) {
+            currentTarget = nextId;
+            updateGraph();
+        }
+    }
+
     function updateGraph() {
-        // ボタンの見た目を更新
         document.getElementById('mode-split').className = `selector-btn ${currentMode==='split'?'active':''}`;
         document.getElementById('mode-lap').className = `selector-btn ${currentMode==='lap'?'active':''}`;
-        
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         let datasets = [], labels = [];
         const unit = document.getElementById('unit-label').value;
 
         if (currentTarget === 'all') {
-            document.getElementById('graph-title').innerText = `全員比較 (${currentMode.toUpperCase()})`;
+            document.getElementById('graph-title').innerText = `全体解析`;
             let maxL = 0;
             for (let i = 1; i <= studentCount; i++) {
                 if (studentData[i].laps.length) {
@@ -254,7 +266,7 @@
             }
             labels = Array.from({length: maxL}, (_, i) => `${unit}${i+1}`);
         } else {
-            document.getElementById('graph-title').innerText = `No.${currentTarget} 解析`;
+            document.getElementById('graph-title').innerText = `No.${currentTarget} 詳細`;
             labels = studentData[currentTarget].laps.map((_, i) => `${unit}${i+1}`);
             datasets.push({
                 label: currentMode==='split'?'累計':'区間',
@@ -276,13 +288,7 @@
                         callbacks: { label: (c) => ` ${c.dataset.label}: ${c.raw.toFixed(2)}s` }
                     }
                 },
-                scales: { 
-                    y: { 
-                        reverse: (currentMode==='lap'), 
-                        beginAtZero: true,
-                        grid: { color: '#333' }
-                    } 
-                }
+                scales: { y: { reverse: (currentMode==='lap'), beginAtZero: true, grid: { color: '#333' } } }
             }
         });
     }
@@ -290,30 +296,17 @@
     async function shareGraph() {
         const blob = await new Promise(resolve => document.getElementById('chartCanvas').toBlob(resolve));
         const file = new File([blob], "result.png", { type: "image/png" });
-        if (navigator.share) {
-            navigator.share({ files: [file], title: '計測結果', text: '計測データ共有' }).catch(() => alert("共有に失敗しました"));
-        } else {
-            alert("このブラウザは共有機能に対応していません。「画像保存」をご利用ください。");
-        }
+        if (navigator.share) navigator.share({ files: [file], title: '計測結果' });
     }
-
     function downloadGraph() {
-        const a = document.createElement('a');
-        a.href = document.getElementById('chartCanvas').toDataURL('image/png');
-        a.download = `result_${new Date().getTime()}.png`;
-        a.click();
+        const a = document.createElement('a'); a.href = document.getElementById('chartCanvas').toDataURL();
+        a.download = `result_${currentTarget}.png`; a.click();
     }
-
     function copyData() {
-        let txt = "【計測データ】\n";
-        for (let i in studentData) {
-            if(studentData[i].laps.length) {
-                txt += `No.${i}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join(' / ')}\n`;
-            }
-        }
-        navigator.clipboard.writeText(txt); alert("クリップボードにコピーしました");
+        let txt = "【計測】\n";
+        for (let i in studentData) if(studentData[i].laps.length) txt += `No.${i}: ${studentData[i].laps.map(l=>l.lap.toFixed(2)).join('/')}\n`;
+        navigator.clipboard.writeText(txt); alert("コピーしました");
     }
-
     initStudents();
 </script>
 </body>
